@@ -7,8 +7,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QTabWidget, QFrame
 )
 from PySide6.QtCore import Qt, QThreadPool
-from PySide6.QtGui import QIcon, QDesktopServices
-from PySide6.QtCore import QUrl
+from PySide6.QtGui import QIcon
 
 from hermes_downloader.models.download_task import DownloadTask, TaskStatus
 from hermes_downloader.core.task_manager import TaskManager
@@ -213,10 +212,15 @@ class MainWindow(QMainWindow):
 
     def _open_file(self, file_path: str):
         if file_path and os.path.exists(file_path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            # macOS: открыть с выбором плеера
+            import subprocess
+            subprocess.Popen(["open", file_path])
 
     def _delete_file(self, file_path: str):
-        if not file_path or not os.path.exists(file_path): return
+        if not file_path:
+            QMessageBox.warning(self, "Ошибка", "Путь к файлу не указан"); return
+        if not os.path.exists(file_path):
+            QMessageBox.information(self, "Удалить", "Файл уже удалён"); self._load_history(); return
         r = QMessageBox.question(self, "Удалить", f"Удалить {os.path.basename(file_path)}?",
                                   QMessageBox.Yes | QMessageBox.No)
         if r == QMessageBox.Yes:
