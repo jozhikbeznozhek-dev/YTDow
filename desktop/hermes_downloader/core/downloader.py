@@ -90,17 +90,30 @@ class DownloadWorker(QRunnable):
             file_path = ""
             title = ""
 
-            def _capture_output(d):
-                nonlocal file_path, title
-                if d['status'] == 'finished':
-                    file_path = d.get('filename', '')
-                if d.get('info_dict'):
-                    title = d['info_dict'].get('title', '')
-
-            ydl_opts['progress_hooks'].append(_capture_output)
+            # Перехватываем stdout yt-dlp для ловли названия и пути
+            import io, sys
+            old_out = sys.stdout
+            captured = io.StringIO()
+            sys.stdout = captured
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([self.task.url])
+
+            sys.stdout = old_out
+            output_lines = captured.getvalue().splitlines()
+
+            # Ищем путь [ExtractAudio] или [download] Destination:
+            for line in output_lines:
+                if line.startswith("/"):
+                    file_path = line.strip()
+                elif not title and not line.startswith("[") and not line.startswith("%"):
+                    title = line.strip()
+
+            # Если путь не нашли — ищем в папке последний созданный файл
+            if not file_path or not os.path.exists(file_path):
+                files = [os.path.join(self.save_path, f) for f in os.listdir(self.save_path) if not f.startswith('.')]
+                if files:
+                    file_path = max(files, key=os.path.getctime)
 
             # Сохраняем в историю
             try:
