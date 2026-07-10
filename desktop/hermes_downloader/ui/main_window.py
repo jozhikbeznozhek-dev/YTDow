@@ -212,9 +212,9 @@ class MainWindow(QMainWindow):
 
     def _open_file(self, file_path: str):
         if file_path and os.path.exists(file_path):
-            # macOS: открыть с выбором плеера
             import subprocess
-            subprocess.Popen(["open", file_path])
+            # Показать в Finder → пользователь сам выберет плеер
+            subprocess.Popen(["open", "-R", file_path])
 
     def _delete_file(self, file_path: str):
         if not file_path:
@@ -224,7 +224,16 @@ class MainWindow(QMainWindow):
         r = QMessageBox.question(self, "Удалить", f"Удалить {os.path.basename(file_path)}?",
                                   QMessageBox.Yes | QMessageBox.No)
         if r == QMessageBox.Yes:
-            os.remove(file_path); self._load_history()
+            try:
+                os.remove(file_path)
+                # Удаляем запись из истории
+                if os.path.exists(HISTORY_FILE):
+                    hist = json.loads(open(HISTORY_FILE).read())
+                    hist = [e for e in hist if e.get('filePath') != file_path]
+                    json.dump(hist, open(HISTORY_FILE, 'w'), indent=2, ensure_ascii=False)
+            except Exception as e:
+                QMessageBox.warning(self, "Ошибка", str(e))
+            self._load_history()
 
     def _on_tab_changed(self, idx):
         if idx == 1: self._load_history()
