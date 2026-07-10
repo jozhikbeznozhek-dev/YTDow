@@ -1,0 +1,161 @@
+/* Hermes Downloader — Минималистичный стиль в духе Telegram / macOS */
+
+QMainWindow {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+QWidget {
+    background-color: transparent;
+    color: #e0e0e0;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+    font-size: 13px;
+}
+
+/* Поле ввода URL */
+QLineEdit {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    color: #ffffff;
+    selection-background-color: #007AFF;
+}
+
+QLineEdit:focus {
+    border: 1px solid #007AFF;
+}
+
+QLineEdit::placeholder {
+    color: #6d6d6d;
+}
+
+/* Комбо-боксы */
+QComboBox {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    border-radius: 6px;
+    padding: 6px 12px;
+    min-width: 90px;
+    color: #e0e0e0;
+}
+
+QComboBox:hover {
+    border: 1px solid #007AFF;
+}
+
+QComboBox::drop-down {
+    border: none;
+    padding-right: 8px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    selection-background-color: #007AFF;
+    color: #e0e0e0;
+}
+
+/* Кнопки */
+QPushButton {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    border-radius: 6px;
+    padding: 8px 16px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+QPushButton:hover {
+    background-color: #3d3d3d;
+    border: 1px solid #4d4d4d;
+}
+
+QPushButton:pressed {
+    background-color: #252525;
+}
+
+QPushButton#download_btn {
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+QPushButton#download_btn:hover {
+    background-color: #0066d6;
+}
+
+QPushButton#download_btn:pressed {
+    background-color: #0055b3;
+}
+
+/* Скролл-область */
+QScrollArea {
+    border: none;
+    background-color: transparent;
+}
+
+QScrollBar:vertical {
+    background-color: transparent;
+    width: 6px;
+    border-radius: 3px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #4d4d4d;
+    border-radius: 3px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #5d5d5d;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+/* Прогресс-бар */
+QProgressBar {
+    background-color: #2d2d2d;
+    border: none;
+    border-radius: 3px;
+    height: 6px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #007AFF;
+    border-radius: 3px;
+}
+
+/* Лейблы */
+QLabel {
+    color: #b0b0b0;
+}
+
+QLabel#title_label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+QLabel#status_label {
+    font-size: 12px;
+}
+
+QLabel#error_label {
+    color: #ff453a;
+    font-size: 12px;
+}
+
+/* Карточка задачи */
+QFrame#task_card {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    border-radius: 10px;
+    padding: 12px;
+}
