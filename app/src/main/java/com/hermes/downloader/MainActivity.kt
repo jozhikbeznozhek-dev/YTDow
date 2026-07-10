@@ -244,16 +244,70 @@ class MainActivity : AppCompatActivity() {
         fun checkUpdate() {
             Thread {
                 try {
-                    val url = java.net.URL("https://api.github.com/repos/NousResearch/hermes-agent/releases/latest")
+                    val url = java.net.URL("https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest")
                     val conn = url.openConnection() as java.net.HttpURLConnection
                     conn.connectTimeout = 5000; conn.readTimeout = 5000
                     conn.setRequestProperty("Accept", "application/json")
                     val body = conn.inputStream.bufferedReader().readText()
                     val json = JSONObject(body)
                     val latest = json.optString("tag_name", "").removePrefix("v")
-                    js("onUpdateResult('$latest')")
+
+                    // Ищем APK среди assets
+                    val assets = json.optJSONArray("assets") ?: JSONArray()
+                    var downloadUrl = ""
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.endsWith(".apk")) {
+                            downloadUrl = asset.optString("browser_download_url", "")
+                            break
+                        }
+                    }
+
+                    val result = JSONObject().apply {
+                        put("latest", latest)
+                        put("downloadUrl", downloadUrl)
+                        put("current", "1.0.0")
+                    }
+                    js("onUpdateResult('${esc(result.toString())}')")
                 } catch (e: Exception) {
-                    js("onUpdateResult('error')")
+                    js("onUpdateResult('${esc("""{"error":"${(e.message?:"").replace("\"","'")}"}""")}')")
+                }
+            }.start()
+        }
+
+        @JavascriptInterface
+        fun downloadUpdate(url: String) {
+            Thread {
+                try {
+                    val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 30000; conn.readTimeout = 60000
+                    val total = conn.contentLength
+                    val apkFile = File(cacheDir, "update.apk")
+                    conn.inputStream.use { input ->
+                        apkFile.outputStream().use { output ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            var downloaded = 0L
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                downloaded += bytesRead
+                                if (total > 0) {
+                                    val pct = (downloaded * 100 / total).toInt()
+                                    js("onUpdateProgress($pct)")
+                                }
+                            }
+                        }
+                    }
+                    // Запускаем установку
+                    val uri = FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", apkFile)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    runOnUiThread { toast("Ошибка: ${e.message}") }
                 }
             }.start()
         }

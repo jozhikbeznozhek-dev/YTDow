@@ -302,13 +302,32 @@ function renderLibrary() {
 
 // === UPDATE CHECK ===
 function checkUpdate() {
-  document.getElementById('updateStatus').textContent = 'Проверка...';
+  document.getElementById('updateStatus').innerHTML = 'Проверка...';
   Android.checkUpdate();
 }
-function onUpdateResult(ver) {
-  if (ver === 'latest') document.getElementById('updateStatus').textContent = '✓ У вас последняя версия';
-  else if (ver === 'error') document.getElementById('updateStatus').textContent = '⚠ Ошибка проверки';
-  else document.getElementById('updateStatus').textContent = '🆕 Доступна версия '+ver;
+function onUpdateResult(resultStr) {
+  try {
+    const r = JSON.parse(resultStr);
+    if (r.error) { document.getElementById('updateStatus').textContent = '⚠ ' + r.error; return; }
+    const current = r.current || '1.0.0';
+    const latest = r.latest || '?';
+    const downloadUrl = r.downloadUrl || '';
+    if (latest === current || !latest || latest === '?') {
+      document.getElementById('updateStatus').innerHTML = '✓ У вас последняя версия (' + current + ')';
+    } else if (downloadUrl) {
+      document.getElementById('updateStatus').innerHTML = '🆕 Доступна v' + latest + ' <button class="btn btn-sm btn-primary" onclick="downloadUpdate(\'' + esc(downloadUrl) + '\')">⬇ Скачать</button>';
+    } else {
+      document.getElementById('updateStatus').textContent = '🆕 Доступна v' + latest + ' (нет APK)';
+    }
+  } catch(e) { document.getElementById('updateStatus').textContent = '⚠ Ошибка'; }
+}
+function downloadUpdate(url) {
+  document.getElementById('updateStatus').innerHTML = 'Скачивание... <span id="dlPct">0%</span>';
+  Android.downloadUpdate(url);
+}
+function onUpdateProgress(pct) {
+  const el = document.getElementById('dlPct');
+  if (el) el.textContent = pct + '%';
 }
 
 // === UTILS ===
