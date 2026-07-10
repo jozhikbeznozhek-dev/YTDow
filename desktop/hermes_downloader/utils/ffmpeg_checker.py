@@ -2,6 +2,8 @@ import subprocess
 import shutil
 import sys
 import os
+from typing import Optional
+
 
 
 def is_ffmpeg_available() -> bool:
@@ -18,7 +20,7 @@ def is_ffmpeg_available() -> bool:
     return False
 
 
-def get_ffmpeg_path() -> str | None:
+def get_ffmpeg_path() -> Optional[str]:
     """Возвращает путь к ffmpeg или None."""
     path = shutil.which("ffmpeg")
     if path:
