@@ -1,94 +1,49 @@
-# Hermes Downloader — Android
+# YTDow — YouTube Video Downloader for Android
 
-Десктопное приложение → Android (WebView-порт).
-Интерфейс 1:1, используется yt-dlp ARM-бинарник.
+Android-приложение для скачивания видео и аудио с YouTube, VK и других сайтов.
 
-## Архитектура
+## Возможности
 
-```
-WebView (HTML/CSS/JS)  ←→  Kotlin Bridge (JavaScriptInterface)
-       ↓                         ↓
-  UI (тёмная тема)        MainActivity + DownloadService
-                                 ↓
-                          bundled yt-dlp runtime
-                          (youtubedl-android)
-                                 ↓
-                          App-specific Downloads/HermesDownloader/
-```
+- ⬇ Скачивание видео (MP4) и аудио (MP3)
+- 📊 Расчёт размера по качеству перед загрузкой
+- ⚡ Параллельные загрузки (до 3 одновременно)
+- 📦 Пакетная загрузка (ссылки через запятую)
+- 📋 История скачанного с возможностью открыть/удалить
+- 🔄 Проверка обновлений через GitHub Releases
 
-## Структура проекта
+## Скриншоты
 
-```
-android2/
-├── app/
-│   ├── build.gradle.kts          # Зависимости: androidx, material
-│   └── src/main/
-│       ├── AndroidManifest.xml   # Permissions: INTERNET, STORAGE, FOREGROUND
-│       ├── java/com/hermes/downloader/
-│       │   ├── MainActivity.kt   # WebView shell + JS bridge
-│       │   └── DownloadService.kt # Foreground download service
-│       ├── assets/
-│       │   └── index.html         # UI (тёмная тема, как на десктопе)
-│       └── res/values/
-│           ├── strings.xml
-│           ├── colors.xml         # #1E1E1E, #007AFF, #2D2D2D
-│           └── themes.xml         # Theme.AppCompat.NoActionBar
-├── build.gradle.kts
-├── settings.gradle.kts
-├── gradle.properties
-└── build_apk.sh                   # Скрипт сборки
-```
+<p align="center">
+  <em>Главная · Загрузка · Библиотека · Настройки</em>
+</p>
 
-## Сборка APK
+## Установка
 
-### 1. Установи зависимости
+Скачай APK из [Releases](https://github.com/jozhikbeznozhek-dev/YTDow/releases) и установи.
 
-- **Android Studio** (или SDK отдельно): CLI + JDK 17
-- **ANDROID_HOME**: `export ANDROID_HOME=~/Library/Android/sdk`
-- Gradle wrapper уже добавлен, отдельный системный `gradle` не нужен
-
-### 2. Запусти сборку
+## Сборка из исходников
 
 ```bash
-cd ~/Desktop/android\ 2
-chmod +x build_apk.sh
-./build_apk.sh
+# Клонируй репозиторий
+git clone https://github.com/jozhikbeznozhek-dev/YTDow.git
+cd YTDow
+
+# Открой в Android Studio или собери через Gradle
+./gradlew assembleDebug
 ```
 
-Или через Android Studio: открой папку как проект → Build → Build APK.
+Требования:
+- Android SDK 34
+- JDK 17
+- Kotlin 1.9
 
-### 3. Установи на устройство
+## Технологии
 
-```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
+- Kotlin + WebView (HTML/CSS/JS)
+- [youtubedl-android](https://github.com/junkfood02/youtubedl-android)
+- yt-dlp
+- FFmpeg
 
-## Как это работает
+## Лицензия
 
-1. **MainActivity** создаёт WebView, загружает `index.html`
-2. **WebAppInterface** (JS-bridge) пробрасывает методы в JS:
-   - `Android.startDownload(url, format, quality, taskId)`
-   - `Android.getDownloadDir()`
-   - `Android.cancelDownload(taskId)`
-3. **DownloadService** запускает bundled `yt-dlp` через `youtubedl-android`,
-   получает callback прогресса и шлёт прогресс в WebView
-4. **MainActivity** принимает внутренние broadcast-события сервиса и вызывает
-   `evaluateJavascript("onProgress(...)")`
-
-## Отличия от десктопной версии
-
-| Десктоп (PySide6) | Android (WebView) |
-|---|---|
-| Python yt-dlp (import) | youtubedl-android bundled runtime |
-| QThreadPool | Thread + ForegroundService |
-| QSS (Qt Style Sheets) | CSS |
-| QLineEdit/QComboBox | HTML input/select |
-| Файловая система | App-specific external storage |
-| ffmpeg | Системный ffmpeg | Bundled ffmpeg |
-
-## Требования APK
-
-- Min SDK: 24 (Android 7.0)
-- Target SDK: 34 (Android 14)
-- ABI: arm64-v8a
-- Размер APK: зависит от bundled Python/yt-dlp/ffmpeg runtime
+MIT

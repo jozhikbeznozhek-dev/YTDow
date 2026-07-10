@@ -12,5 +12,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HermesDownloader"
+rootProject.name = "YTDow"
 include(":app")

@@ -1,11 +1,11 @@
 #!/bin/bash
-# Hermes Downloader — сборка APK для Android
+# YTDow — сборка APK для Android
 # Требования: Android SDK + JDK 17 + Kotlin
 
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-echo "=== Hermes Downloader — Android Build ==="
+echo "=== YTDow — Android Build ==="
 echo "Project: $PROJECT_DIR"
 
 # 1. Проверяем окружение
