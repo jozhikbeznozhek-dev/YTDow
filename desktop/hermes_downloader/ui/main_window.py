@@ -213,27 +213,33 @@ class MainWindow(QMainWindow):
     def _open_file(self, file_path: str):
         if file_path and os.path.exists(file_path):
             import subprocess
-            # Показать в Finder → пользователь сам выберет плеер
-            subprocess.Popen(["open", "-R", file_path])
+            subprocess.Popen(["open", file_path])
 
     def _delete_file(self, file_path: str):
         if not file_path:
             QMessageBox.warning(self, "Ошибка", "Путь к файлу не указан"); return
+        # Если файла нет — просто чистим историю
         if not os.path.exists(file_path):
-            QMessageBox.information(self, "Удалить", "Файл уже удалён"); self._load_history(); return
+            self._remove_from_history(file_path)
+            self._load_history()
+            return
         r = QMessageBox.question(self, "Удалить", f"Удалить {os.path.basename(file_path)}?",
                                   QMessageBox.Yes | QMessageBox.No)
         if r == QMessageBox.Yes:
             try:
                 os.remove(file_path)
-                # Удаляем запись из истории
-                if os.path.exists(HISTORY_FILE):
-                    hist = json.loads(open(HISTORY_FILE).read())
-                    hist = [e for e in hist if e.get('filePath') != file_path]
-                    json.dump(hist, open(HISTORY_FILE, 'w'), indent=2, ensure_ascii=False)
+                self._remove_from_history(file_path)
             except Exception as e:
                 QMessageBox.warning(self, "Ошибка", str(e))
             self._load_history()
+
+    def _remove_from_history(self, file_path: str):
+        try:
+            if os.path.exists(HISTORY_FILE):
+                hist = json.loads(open(HISTORY_FILE).read())
+                hist = [e for e in hist if e.get('filePath') != file_path]
+                json.dump(hist, open(HISTORY_FILE, 'w'), indent=2, ensure_ascii=False)
+        except: pass
 
     def _on_tab_changed(self, idx):
         if idx == 1: self._load_history()
