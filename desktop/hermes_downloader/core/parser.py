@@ -10,8 +10,9 @@ class VideoInfo:
     title: str
     duration: str
     thumbnail: Optional[str] = None
-    formats: List[str] = None   # доступные разрешения
-    filesize: Optional[str] = None     # примерный размер
+    formats: List[str] = None
+    format_sizes: dict = None   # {"1080p": "450 MB", ...}
+    filesize: Optional[str] = None
     uploader: Optional[str] = None
     url: str = ""
 
@@ -36,10 +37,16 @@ def parse_video(url: str, proxy: Optional[str] = None) -> Optional[VideoInfo]:
             info = ydl.extract_info(url, download=False)
 
         formats = set()
+        format_sizes = {}  # "1080p" -> "450 MB"
         for f in info.get('formats', []):
             height = f.get('height')
-            if height and height >= 360:
-                formats.add(f"{height}p")
+            if height and height >= 144:
+                label = f"{height}p"
+                formats.add(label)
+                # Сохраняем размер формата
+                fs = f.get('filesize') or f.get('filesize_approx')
+                if fs and label not in format_sizes:
+                    format_sizes[label] = _format_bytes(fs)
 
         duration = info.get('duration', 0) or 0
         minutes, seconds = divmod(duration, 60)
@@ -60,6 +67,7 @@ def parse_video(url: str, proxy: Optional[str] = None) -> Optional[VideoInfo]:
             duration=duration_str,
             thumbnail=info.get('thumbnail'),
             formats=sorted(formats, key=lambda x: int(x[:-1]), reverse=True),
+            format_sizes=format_sizes,
             filesize=filesize,
             uploader=info.get('uploader'),
             url=url,

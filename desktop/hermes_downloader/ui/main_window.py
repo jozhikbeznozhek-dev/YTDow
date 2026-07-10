@@ -49,7 +49,6 @@ class MainWindow(QMainWindow):
         self.layout.setSpacing(12)
         self.layout.setContentsMargins(20, 16, 20, 20)
 
-        # --- Вкладки ---
         self.tabs = QTabWidget()
         self.layout.addWidget(self.tabs)
 
@@ -62,35 +61,29 @@ class MainWindow(QMainWindow):
         self.url_input.url_submitted.connect(self._on_url_submitted)
         dl_layout.addWidget(self.url_input)
 
-        settings_layout = QHBoxLayout(); settings_layout.setSpacing(8)
-        settings_layout.addWidget(QLabel("Формат:"))
+        sl = QHBoxLayout(); sl.setSpacing(8)
+        sl.addWidget(QLabel("Формат:"))
         self.format_combo = QComboBox()
         self.format_combo.addItems(["mp4", "mp3"])
         self.format_combo.currentTextChanged.connect(self._on_format_changed)
-        settings_layout.addWidget(self.format_combo)
-        settings_layout.addWidget(QLabel("Качество:"))
+        sl.addWidget(self.format_combo)
+        sl.addWidget(QLabel("Качество:"))
         self.quality_combo = QComboBox()
         self.quality_combo.addItems(["best", "2160p", "1440p", "1080p", "720p", "480p", "360p"])
-        settings_layout.addWidget(self.quality_combo)
-        settings_layout.addStretch()
+        sl.addWidget(self.quality_combo); sl.addStretch()
 
         self.size_btn = QPushButton("📊 Размер")
-        self.size_btn.clicked.connect(self._calc_size)
-        settings_layout.addWidget(self.size_btn)
+        self.size_btn.clicked.connect(self._calc_size); sl.addWidget(self.size_btn)
         self.folder_btn = QPushButton("📁 Папка")
-        self.folder_btn.clicked.connect(self._choose_folder)
-        settings_layout.addWidget(self.folder_btn)
+        self.folder_btn.clicked.connect(self._choose_folder); sl.addWidget(self.folder_btn)
         self.settings_btn = QPushButton("⚙️")
         self.settings_btn.setFixedWidth(40)
-        self.settings_btn.clicked.connect(self._open_settings)
-        settings_layout.addWidget(self.settings_btn)
+        self.settings_btn.clicked.connect(self._open_settings); sl.addWidget(self.settings_btn)
         self.download_btn = QPushButton("⬇ Скачать")
         self.download_btn.setObjectName("download_btn")
-        self.download_btn.clicked.connect(self._start_download)
-        settings_layout.addWidget(self.download_btn)
-        dl_layout.addLayout(settings_layout)
+        self.download_btn.clicked.connect(self._start_download); sl.addWidget(self.download_btn)
+        dl_layout.addLayout(sl)
 
-        # Превью
         self.preview_label = QLabel("")
         self.preview_label.setStyleSheet("background:#2d2d2d;border-radius:10px;padding:12px;font-size:12px;color:#b0b0b0")
         self.preview_label.setVisible(False)
@@ -107,77 +100,74 @@ class MainWindow(QMainWindow):
 
         # === Вкладка 2: Библиотека ===
         self.lib_tab = QWidget()
-        lib_layout = QVBoxLayout(self.lib_tab); lib_layout.setSpacing(12)
-
-        lib_layout.addWidget(QLabel("📥 Скачанное"))
+        lib_l = QVBoxLayout(self.lib_tab); lib_l.setSpacing(12)
+        lib_l.addWidget(QLabel("📥 Скачанное"))
         self.lib_scroll = QScrollArea()
         self.lib_widget = QWidget()
         self.lib_layout = QVBoxLayout(self.lib_widget)
         self.lib_layout.setAlignment(Qt.AlignTop); self.lib_layout.setSpacing(8)
         self.lib_scroll.setWidget(self.lib_widget); self.lib_scroll.setWidgetResizable(True)
-        lib_layout.addWidget(self.lib_scroll, 1)
+        lib_l.addWidget(self.lib_scroll, 1)
 
-        lib_layout.addWidget(QLabel("⚙️ Настройки"))
-        settings_frame = QFrame()
-        settings_frame.setStyleSheet("QFrame{background:#2d2d2d;border-radius:10px;padding:12px}")
-        sf_layout = QVBoxLayout(settings_frame)
+        lib_l.addWidget(QLabel("⚙️ Настройки"))
+        sf = QFrame()
+        sf.setStyleSheet("QFrame{background:#2d2d2d;border-radius:10px;padding:12px}")
+        sfl = QVBoxLayout(sf)
         self.update_btn = QPushButton("🔄 Проверить обновление")
         self.update_btn.setObjectName("download_btn")
-        self.update_btn.clicked.connect(self._check_update)
-        sf_layout.addWidget(self.update_btn)
+        self.update_btn.clicked.connect(self._check_update); sfl.addWidget(self.update_btn)
         self.update_status = QLabel("")
-        self.update_status.setStyleSheet("font-size:12px;color:#6d6d6d")
-        sf_layout.addWidget(self.update_status)
-        sf_layout.addWidget(QLabel("YTDow v1.1.0 · macOS"))
-        lib_layout.addWidget(settings_frame)
+        self.update_status.setStyleSheet("font-size:12px;color:#6d6d6d"); sfl.addWidget(self.update_status)
+        sfl.addWidget(QLabel("YTDow v1.1.0 · macOS"))
+        lib_l.addWidget(sf)
         self.tabs.addTab(self.lib_tab, "📚 Библиотека")
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
-    # === URL submitted: preview ===
+    # === Helpers ===
+    def _show_preview(self, info):
+        sizes = ""
+        try:
+            if info.format_sizes:
+                sizes = "\n" + " | ".join(f"{h}: {s}" for h, s in sorted(info.format_sizes.items(), key=lambda x: -int(x[0][:-1])))
+        except: pass
+        self.preview_label.setText(f"🎬 {info.title}\n⏱ {info.duration} · 📦 {info.filesize or '?'}{sizes}")
+        self.preview_label.setVisible(True)
+
+    def _parse_thread(self, url, is_calc=False):
+        try:
+            info = parse_video(url, proxy=self.task_manager.proxy)
+            self.url_input.setEnabled(True)
+            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
+            if info:
+                if not is_calc: self.url_input.setText(info.title)
+                self.quality_combo.clear()
+                if info.formats: self.quality_combo.addItems(info.formats)
+                else: self.quality_combo.addItems(["best","2160p","1440p","1080p","720p","480p","360p"])
+                self._show_preview(info)
+        except VideoUnavailableError:
+            self.url_input.setEnabled(True)
+            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
+            QMessageBox.warning(self, "Ошибка", "Видео недоступно.")
+        except ParseError as e:
+            self.url_input.setEnabled(True)
+            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
+            QMessageBox.warning(self, "Ошибка парсинга", str(e))
+        except Exception as e:
+            self.url_input.setEnabled(True)
+            self.preview_label.setText(f"⚠ Ошибка: {e}")
+
     def _on_url_submitted(self, url: str):
         self.url_input.setEnabled(False)
         self.url_input.setPlaceholderText("Анализирую...")
-        def _parse():
-            try:
-                info = parse_video(url, proxy=self.task_manager.proxy)
-                self.url_input.setEnabled(True)
-                self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
-                if info:
-                    self.url_input.setText(info.title)
-                    self.quality_combo.clear()
-                    if info.formats:
-                        self.quality_combo.addItems(info.formats)
-                    else:
-                        self.quality_combo.addItems(["best","2160p","1440p","1080p","720p","480p","360p"])
-                    self.preview_label.setText(
-                        f"🎬 {info.title}\n⏱ {info.duration} · 📦 {info.filesize or '?'}"
-                    )
-                    self.preview_label.setVisible(True)
-            except VideoUnavailableError:
-                self.url_input.setEnabled(True); self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
-                QMessageBox.warning(self, "Ошибка", "Видео недоступно.")
-            except ParseError as e:
-                self.url_input.setEnabled(True); self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
-                QMessageBox.warning(self, "Ошибка парсинга", str(e))
-        threading.Thread(target=_parse, daemon=True).start()
+        threading.Thread(target=lambda: self._parse_thread(url), daemon=True).start()
 
     def _calc_size(self):
         url = self.url_input.text().strip()
         if not url or not url.startswith("http"):
             QMessageBox.warning(self, "Ошибка", "Вставьте ссылку"); return
         self.preview_label.setText("Расчёт..."); self.preview_label.setVisible(True)
-        def _calc():
-            try:
-                info = parse_video(url, proxy=self.task_manager.proxy)
-                self.preview_label.setText(
-                    f"🎬 {info.title}\n⏱ {info.duration} · 📦 {info.filesize or '?'}"
-                )
-                if info.formats:
-                    self.quality_combo.clear(); self.quality_combo.addItems(info.formats)
-            except Exception as e:
-                self.preview_label.setText(f"⚠ Ошибка: {e}")
-        threading.Thread(target=_calc, daemon=True).start()
+        threading.Thread(target=lambda: self._parse_thread(url, is_calc=True), daemon=True).start()
 
     def _on_format_changed(self, fmt: str):
         self.quality_combo.setEnabled(fmt != "mp3")
@@ -191,7 +181,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Нет корректных ссылок"); return
         fmt = self.format_combo.currentText()
         qual = self.quality_combo.currentText()
-
         for url in urls:
             url = re.sub(r'[&?]list=[^&]+', '', url)
             url = re.sub(r'[&?]index=\d+', '', url).rstrip('?')
@@ -203,7 +192,6 @@ class MainWindow(QMainWindow):
             self.tasks_layout.addWidget(widget)
             self.task_manager.register_widget(task.id, widget)
             self.task_manager.add_task(task)
-
         self.url_input.clear()
         self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
         self.preview_label.setVisible(False)
@@ -213,12 +201,11 @@ class MainWindow(QMainWindow):
         if folder: self.task_manager.save_path = folder
 
     def _open_settings(self):
-        dialog = SettingsDialog(current_path=self.task_manager.save_path,
-                                current_proxy=self.task_manager.proxy or "", parent=self)
-        if dialog.exec():
-            path = dialog.get_save_path()
-            if path: self.task_manager.save_path = path
-            self.task_manager.proxy = dialog.get_proxy()
+        dlg = SettingsDialog(current_path=self.task_manager.save_path,
+                             current_proxy=self.task_manager.proxy or "", parent=self)
+        if dlg.exec():
+            if path := dlg.get_save_path(): self.task_manager.save_path = path
+            self.task_manager.proxy = dlg.get_proxy()
 
     def _check_ffmpeg(self):
         if not is_ffmpeg_available():
@@ -230,30 +217,26 @@ class MainWindow(QMainWindow):
 
     def _delete_file(self, file_path: str):
         if not file_path or not os.path.exists(file_path): return
-        reply = QMessageBox.question(self, "Удалить", f"Удалить {os.path.basename(file_path)}?",
-                                      QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            os.remove(file_path)
-            self._load_history()
+        r = QMessageBox.question(self, "Удалить", f"Удалить {os.path.basename(file_path)}?",
+                                  QMessageBox.Yes | QMessageBox.No)
+        if r == QMessageBox.Yes:
+            os.remove(file_path); self._load_history()
 
     def _on_tab_changed(self, idx):
         if idx == 1: self._load_history()
 
     def _load_history(self):
-        # Очищаем
         for i in reversed(range(self.lib_layout.count())):
             w = self.lib_layout.itemAt(i).widget()
             if w: w.setParent(None)
-
         history = []
         if os.path.exists(HISTORY_FILE):
             try: history = json.loads(open(HISTORY_FILE).read())
             except: pass
-
         if not history:
             self.lib_layout.addWidget(QLabel("Пусто"))
+            self.lib_layout.addStretch()
             return
-
         for entry in history[-50:]:
             card = QFrame()
             card.setStyleSheet("QFrame{background:#2d2d2d;border-radius:10px;padding:12px;margin-bottom:4px}")
@@ -261,18 +244,18 @@ class MainWindow(QMainWindow):
             cl.addWidget(QLabel(f"🎬 {entry.get('title', entry.get('url', '?'))}"))
             meta = f"{entry.get('format','mp4')} · {entry.get('quality','best')} · {entry.get('time','')}"
             cl.addWidget(QLabel(meta))
-            btn_row = QHBoxLayout()
+            br = QHBoxLayout()
             if entry.get('filePath') and os.path.exists(entry['filePath']):
-                open_btn = QPushButton("▶ Открыть")
-                open_btn.clicked.connect(lambda _, fp=entry['filePath']: self._open_file(fp))
-                btn_row.addWidget(open_btn)
-            folder_btn = QPushButton("📁 Папка")
-            folder_btn.clicked.connect(lambda _, fp=self.task_manager.save_path: self._open_file(fp))
-            btn_row.addWidget(folder_btn)
-            del_btn = QPushButton("🗑 Удалить")
-            del_btn.clicked.connect(lambda _, fp=entry.get('filePath',''): self._delete_file(fp))
-            btn_row.addWidget(del_btn)
-            cl.addLayout(btn_row)
+                ob = QPushButton("▶ Открыть")
+                ob.clicked.connect(lambda _, fp=entry['filePath']: self._open_file(fp))
+                br.addWidget(ob)
+            fb = QPushButton("📁 Папка")
+            fb.clicked.connect(lambda _, fp=self.task_manager.save_path: self._open_file(fp))
+            br.addWidget(fb)
+            db = QPushButton("🗑 Удалить")
+            db.clicked.connect(lambda _, fp=entry.get('filePath',''): self._delete_file(fp))
+            br.addWidget(db)
+            cl.addLayout(br)
             self.lib_layout.addWidget(card)
         self.lib_layout.addStretch()
 
@@ -281,14 +264,14 @@ class MainWindow(QMainWindow):
         def _upd():
             try:
                 import urllib.request
-                req = urllib.request.Request("https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest",
-                                              headers={"Accept": "application/json"})
+                req = urllib.request.Request(
+                    "https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest",
+                    headers={"Accept": "application/json"})
                 data = json.loads(urllib.request.urlopen(req, timeout=5).read())
                 latest = data.get("tag_name", "").lstrip("v")
-                if latest and latest != "1.1.0":
-                    self.update_status.setText(f"🆕 Доступна версия {latest}")
-                else:
-                    self.update_status.setText("✓ У вас последняя версия")
+                self.update_status.setText(
+                    f"🆕 Доступна v{latest}" if latest and latest != "1.1.0"
+                    else "✓ У вас последняя версия")
             except Exception as e:
                 self.update_status.setText(f"⚠ Ошибка: {e}")
         threading.Thread(target=_upd, daemon=True).start()
