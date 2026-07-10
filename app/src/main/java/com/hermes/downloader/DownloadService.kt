@@ -88,7 +88,7 @@ class DownloadService : Service() {
                 }
 
                 if (active.containsKey(tid)) {
-                    val prefs = getSharedPreferences("hermes", MODE_PRIVATE)
+                    val prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
                     val hist = prefs.getString("download_history", "[]") ?: "[]"
                     val arr = org.json.JSONArray(hist)
                     val entry = org.json.JSONObject().apply {
