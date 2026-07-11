@@ -17,6 +17,7 @@ import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.yausername.youtubedl_android.YoutubeDL
 
 class MainActivity : AppCompatActivity() {
 
@@ -72,6 +73,19 @@ class MainActivity : AppCompatActivity() {
         createChannel()
         requestNotifyPerm()
         webView.loadUrl("file:///android_asset/index.html")
+
+        // Автообновление yt-dlp (только при первом запуске или раз в 7 дней)
+        val lastUpdate = prefs.getLong("ytdlp_updated", 0)
+        if (System.currentTimeMillis() - lastUpdate > 7 * 24 * 3600_000L) {
+            Thread {
+                try {
+                    YoutubeDL.getInstance().init(this)
+                    YoutubeDL.getInstance().updateYoutubeDL(this, com.yausername.youtubedl_android.YoutubeDL.UpdateChannel._NIGHTLY)
+                    prefs.edit().putLong("ytdlp_updated", System.currentTimeMillis()).apply()
+                    toast("yt-dlp обновлён")
+                } catch (_: Exception) {}
+            }.start()
+        }
     }
 
     override fun onStart() { super.onStart(); register() }
