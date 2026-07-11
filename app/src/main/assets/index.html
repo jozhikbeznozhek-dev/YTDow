@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>YTDow</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -16,51 +16,34 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
 .settings{display:flex;align-items:center;gap:8px;margin:12px 0;flex-wrap:wrap}
 .settings label{color:#b0b0b0;font-size:13px;white-space:nowrap}
 .settings select{background:#2d2d2d;border:1px solid #3d3d3d;border-radius:8px;color:#e0e0e0;padding:8px 10px;font-size:13px;outline:none;-webkit-appearance:none;appearance:none}
-.settings select:focus{border-color:#007AFF}
 .btn{background:#2d2d2d;border:1px solid #3d3d3d;border-radius:8px;color:#e0e0e0;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .15s;text-align:center}
 .btn:active{background:#252525}
 .btn-primary{background:#007AFF;color:#fff;border:none}
 .btn-primary:active{background:#0066d6}
-.btn-calc{background:#3d3d3d;color:#fff;border:none}
-.btn-calc:active{background:#4d4d4d}
 .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px}
 .btn-folder{padding:10px 12px}
-
-/* Bottom nav */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #3d3d3d;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
 .nav-tab{flex:1;text-align:center;padding:12px 8px;color:#6d6d6d;font-size:11px;cursor:pointer;transition:color .2s;display:flex;flex-direction:column;align-items:center;gap:4px}
 .nav-tab.active{color:#007AFF}
 .nav-tab svg{width:22px;height:22px}
-
 .history-wrap{position:relative;margin-bottom:4px}
 .history-list{display:none;position:absolute;top:100%;left:0;right:0;background:#2d2d2d;border:1px solid #3d3d3d;border-radius:10px;z-index:10;max-height:200px;overflow-y:auto;margin-top:2px}
 .history-list.show{display:block}
 .history-item{padding:12px 16px;font-size:13px;color:#b0b0b0;cursor:pointer;border-bottom:1px solid #3d3d3d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .history-item:last-child{border-bottom:none}
 .history-item:active{background:#3d3d3d;color:#fff}
-
-.calc-card{background:#2d2d2d;border:1px solid #3d3d3d;border-radius:12px;padding:14px;margin-bottom:10px;display:none}
-.calc-card.show{display:block}
-.calc-title{font-size:14px;font-weight:500;color:#fff;margin-bottom:6px}
-.calc-info{font-size:12px;color:#b0b0b0;white-space:pre-line}
-.calc-error{color:#ff453a;font-size:12px}
-
 .task-card{background:#2d2d2d;border:1px solid #3d3d3d;border-radius:12px;padding:14px;margin-bottom:10px}
 .task-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .task-icon{font-size:18px}
 .task-title{flex:1;font-size:14px;font-weight:500;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-status{font-size:12px;color:#b0b0b0;margin:4px 0}
 .task-error{color:#ff453a;font-size:12px}
-
 .progress-wrap{margin:8px 0}
 .progress-bar{height:6px;background:#3d3d3d;border-radius:3px;overflow:hidden}
 .progress-fill{height:100%;background:#007AFF;border-radius:3px;width:0;transition:width .3s}
-
 .task-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;flex-wrap:wrap}
 .task-actions button{background:#3d3d3d;border:none;border-radius:6px;color:#e0e0e0;padding:6px 12px;font-size:12px;cursor:pointer}
 .task-actions button:active{background:#4d4d4d}
-
-/* Library cards */
 .library-section{margin-bottom:20px}
 .done-card{background:#2d2d2d;border:1px solid #3d3d3d;border-radius:10px;padding:12px;margin-bottom:8px;font-size:12px}
 .done-title{color:#fff;font-weight:500;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -72,7 +55,6 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
 .settings-label{font-size:13px}
 .settings-value{font-size:12px;color:#6d6d6d}
 .version-info{font-size:11px;color:#5d5d5d;text-align:center;margin-top:16px}
-
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#3d3d3d;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
 .toast.show{opacity:1}
 .empty{text-align:center;color:#5d5d5d;padding:40px 0;font-size:13px}
@@ -80,7 +62,6 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
 </head>
 <body>
 
-<!-- ═══ СТРАНИЦА 1: ГЛАВНАЯ ═══ -->
 <div class="page active" id="pageHome">
   <div class="history-wrap">
     <input type="url" id="urlInput" placeholder="Вставьте ссылки через запятую..."
@@ -102,19 +83,12 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
     </select>
     <button class="btn btn-folder" onclick="changePath()">📁</button>
     <span id="pathLabel" style="font-size:11px;color:#6d6d6d;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button class="btn btn-calc" onclick="calcSize()">📊 Размер</button>
     <button class="btn btn-primary" onclick="startDownload()">⬇ Скачать</button>
-  </div>
-  <div class="calc-card" id="calcCard">
-    <div class="calc-title" id="calcTitle"></div>
-    <div class="calc-info" id="calcInfo"></div>
-    <div class="calc-error" id="calcError" style="display:none"></div>
   </div>
   <h2>Загрузки</h2>
   <div id="taskList"><div class="empty">Нет активных загрузок</div></div>
 </div>
 
-<!-- ═══ СТРАНИЦА 2: БИБЛИОТЕКА ═══ -->
 <div class="page" id="pageLibrary">
   <div class="library-section">
     <h2 onclick="toggleSection('libraryDownloads')" style="cursor:pointer">📥 Скачанное <span id="libArrow" style="font-size:10px">▼</span></h2>
@@ -142,7 +116,6 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
   </div>
 </div>
 
-<!-- ═══ НИЖНЯЯ НАВИГАЦИЯ ═══ -->
 <div class="bottom-nav">
   <div class="nav-tab active" onclick="switchTab('home')" id="tabHome">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -157,131 +130,92 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
 <div id="toast" class="toast"></div>
 
 <script>
-let tasks = {}, downloadDir = '', taskCounter = 0, history = [], downloadHistory = [];
+let tasks={},downloadDir='',taskCounter=0,history=[],downloadHistory=[];
 
-document.addEventListener('DOMContentLoaded', () => {
-  downloadDir = Android.getDownloadDir(); updatePathLabel();
+document.addEventListener('DOMContentLoaded',()=>{
+  downloadDir=Android.getDownloadDir();updatePathLabel();
   try{history=JSON.parse(Android.getHistory())}catch(e){history=[]}
   try{downloadHistory=JSON.parse(Android.getDownloadHistory()).reverse()}catch(e){downloadHistory=[]}
-  document.getElementById('libPath').textContent = shortenPath(downloadDir);
+  document.getElementById('libPath').textContent=shortenPath(downloadDir);
   renderLibrary();
-  const inp = document.getElementById('urlInput');
-  inp.addEventListener('keydown', e => { if(e.key==='Enter') startDownload(); });
-  inp.addEventListener('input', onUrlInput);
-  inp.addEventListener('focus', onUrlFocus);
-  inp.addEventListener('blur', () => setTimeout(()=>document.getElementById('historyList').classList.remove('show'),200));
-  document.getElementById('formatSelect').addEventListener('change', onFormatChange);
+  const inp=document.getElementById('urlInput');
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')startDownload()});
+  inp.addEventListener('input',onUrlInput);
+  inp.addEventListener('focus',onUrlFocus);
+  inp.addEventListener('blur',()=>setTimeout(()=>document.getElementById('historyList').classList.remove('show'),200));
 });
 
-// === NAVIGATION ===
-function switchTab(tab) {
-  document.getElementById('pageHome').classList.toggle('active', tab==='home');
-  document.getElementById('pageLibrary').classList.toggle('active', tab==='library');
-  document.getElementById('tabHome').classList.toggle('active', tab==='home');
-  document.getElementById('tabLibrary').classList.toggle('active', tab==='library');
-  if (tab==='library') { refreshHistory(); renderLibrary(); }
+function switchTab(tab){
+  document.getElementById('pageHome').classList.toggle('active',tab==='home');
+  document.getElementById('pageLibrary').classList.toggle('active',tab==='library');
+  document.getElementById('tabHome').classList.toggle('active',tab==='home');
+  document.getElementById('tabLibrary').classList.toggle('active',tab==='library');
+  if(tab==='library'){refreshHistory();renderLibrary()}
 }
 
-// === HOME PAGE ===
-function onUrlFocus() { if(history.length) showHistoryDropdown(); }
-function onUrlInput() { if(!document.getElementById('urlInput').value) showHistoryDropdown(); else document.getElementById('historyList').classList.remove('show'); }
-function showHistoryDropdown() {
-  const h = document.getElementById('historyList');
+function onUrlFocus(){if(history.length)showHistoryDropdown()}
+function onUrlInput(){if(!document.getElementById('urlInput').value)showHistoryDropdown();else document.getElementById('historyList').classList.remove('show')}
+function showHistoryDropdown(){
+  const h=document.getElementById('historyList');
   if(!history.length){h.classList.remove('show');return}
-  h.innerHTML = history.slice().reverse().map(u => '<div class="history-item" onclick="selectHistory(\''+esc(u)+'\')">'+esc(u)+'</div>').join('');
+  h.innerHTML=history.slice().reverse().map(u=>'<div class="history-item" onclick="selectHistory(\''+esc(u)+'\')">'+esc(u)+'</div>').join('');
   h.classList.add('show');
 }
-function selectHistory(url) { document.getElementById('urlInput').value = url; document.getElementById('historyList').classList.remove('show'); }
-function onFormatChange() { document.getElementById('qualitySelect').style.display = document.getElementById('formatSelect').value==='audio'?'none':''; }
-function updatePathLabel() { const p = downloadDir.split('/'); document.getElementById('pathLabel').textContent = '.../'+p.slice(-2).join('/'); document.getElementById('libPath').textContent = shortenPath(downloadDir); }
+function selectHistory(url){document.getElementById('urlInput').value=url;document.getElementById('historyList').classList.remove('show')}
+function updatePathLabel(){const p=downloadDir.split('/');document.getElementById('pathLabel').textContent='.../'+p.slice(-2).join('/');document.getElementById('libPath').textContent=shortenPath(downloadDir)}
 
-function calcSize() {
-  const url = document.getElementById('urlInput').value.trim();
-  if(!url||!url.startsWith('http')) return toast('Вставьте ссылку');
-  document.getElementById('calcCard').classList.add('show');
-  document.getElementById('calcTitle').textContent = 'Расчёт...';
-  document.getElementById('calcInfo').textContent = '';
-  document.getElementById('calcError').style.display = 'none';
-  Android.calcSize(url);
-}
-function onCalcStart() {}
-function onCalcResult(resultStr) {
-  try {
-    const p = JSON.parse(resultStr);
-    if(p.error){ showCalcError(p.error); return; }
-    document.getElementById('calcTitle').textContent = p.title;
-    var info = '⏱ '+p.duration;
-    if (p.totalSize) info += ' · макс: '+p.totalSize;
-    if (p.sizes) info += '\n'+p.sizes.replace(/\n/g, ' | ');
-    document.getElementById('calcInfo').textContent = info;
-    document.getElementById('calcError').style.display = 'none';
-    if(p.heights&&p.heights.length){ const qs=document.getElementById('qualitySelect'),cur=qs.value;
-      qs.innerHTML='<option value="best">best</option>'+p.heights.map(h=>'<option value="'+h+'">'+h+'</option>').join('');
-      if([...qs.options].some(o=>o.value===cur))qs.value=cur; }
-    // Аудиодорожки
-    const ls=document.getElementById('langSelect');
-    if(p.audioLanguages&&p.audioLanguages.length>1){
-      ls.innerHTML='<option value="">🎙 Авто</option>'+p.audioLanguages.map(l=>'<option value="'+l+'">'+langLabel(l)+'</option>').join('');
-      ls.style.display='';}
-    else{ls.style.display='none';ls.value='';}
-  } catch(e) { showCalcError('Ошибка разбора'); }
-}
-function showCalcError(msg) {
-  document.getElementById('calcTitle').textContent=''; document.getElementById('calcInfo').textContent='';
-  const el=document.getElementById('calcError'); el.textContent='⚠ '+msg; el.style.display='block';
-  setTimeout(()=>{el.style.display='none';document.getElementById('calcCard').classList.remove('show')},3000);
-}
-
-function langLabel(lang) {
-  const map={ru:"🇷🇺 Русский",en:"🇬🇧 English",de:"🇩🇪 Deutsch",fr:"🇫🇷 Français",
-            es:"🇪🇸 Español",it:"🇮🇹 Italiano",ja:"🇯🇵 日本語",ko:"🇰🇷 한국어",
-            zh:"🇨🇳 中文",pt:"🇵🇹 Português",ar:"🇸🇦 العربية",hi:"🇮🇳 हिन्दी"};
-  return map[lang]||lang.toUpperCase();
-}
-
-function startDownload() {
-  const raw = document.getElementById('urlInput').value.trim();
+function startDownload(){
+  const raw=document.getElementById('urlInput').value.trim();
   if(!raw)return toast('Вставьте ссылку');
-  const urls = raw.split(',').map(u=>u.trim()).filter(u=>u.startsWith('http'));
+  const urls=raw.split(',').map(u=>u.trim()).filter(u=>u.startsWith('http'));
   if(!urls.length)return toast('Нет ссылок');
-  const fmt=document.getElementById('formatSelect').value, qual=document.getElementById('qualitySelect').value;
+  const fmt=document.getElementById('formatSelect').value;
+  const qual=document.getElementById('qualitySelect').value;
   const lang=document.getElementById('langSelect').value;
   urls.forEach(url=>{
     const tid='task_'+(++taskCounter);
     tasks[tid]={id:tid,url,fmt,qual,lang,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
     Android.startDownload(url,fmt,qual,tid,downloadDir,lang);
   });
-  document.getElementById('urlInput').value=''; document.getElementById('calcCard').classList.remove('show');
+  document.getElementById('urlInput').value='';
   renderTasks();
 }
-function cancelDownload(tid){Android.cancelDownload(tid);tasks[tid].status='cancelled';renderTasks();}
+function cancelDownload(tid){Android.cancelDownload(tid);tasks[tid].status='cancelled';renderTasks()}
 function changePath(){const p=prompt('Путь:',downloadDir||Android.getDownloadDir());if(p&&p.trim()){downloadDir=p.trim();updatePathLabel();toast('Папка: '+downloadDir)}}
 
-function onProgress(taskId, pct, spd, eta) {
-  if(!tasks[taskId]){ tasks[taskId]={id:taskId,status:'downloading',percent:pct,speed:spd,eta:eta,title:'',url:'',fmt:'',qual:'',filePath:''}; }
-  tasks[taskId].status='downloading'; tasks[taskId].percent=pct;
-  if(spd) tasks[taskId].speed=spd; if(eta) tasks[taskId].eta=eta;
+// === PROGRESS CALLBACKS (loadUrl-совместимые) ===
+function onProgress(taskId,pct,spd,eta){
+  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'downloading',percent:pct,speed:spd||'',eta:eta||'',title:'',url:'',fmt:'',qual:'',filePath:''};
+  tasks[taskId].status='downloading';
+  tasks[taskId].percent=pct;
+  if(spd)tasks[taskId].speed=spd;
+  if(eta)tasks[taskId].eta=eta;
   renderTasks();
 }
-function onComplete(taskId, fp) {
-  if(!tasks[taskId]){ tasks[taskId]={id:taskId,status:'completed',percent:100,filePath:fp,title:'',url:'',fmt:'',qual:'',speed:'',eta:''}; }
-  tasks[taskId].status='completed'; tasks[taskId].percent=100; if(fp) tasks[taskId].filePath=fp;
-  renderTasks(); refreshHistory(); renderLibrary();
+function onComplete(taskId,fp){
+  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'completed',percent:100,filePath:fp||'',title:'',url:'',fmt:'',qual:'',speed:'',eta:''};
+  tasks[taskId].status='completed';
+  tasks[taskId].percent=100;
+  if(fp)tasks[taskId].filePath=fp;
+  renderTasks();
+  refreshHistory();
+  renderLibrary();
 }
-function onError(taskId, err) {
-  if(!tasks[taskId]){ tasks[taskId]={id:taskId,status:'error',error:err,title:'',url:'',fmt:'',qual:'',percent:0,speed:'',eta:'',filePath:''}; }
-  tasks[taskId].status='error'; tasks[taskId].error=err;
+function onError(taskId,err){
+  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'error',error:err||'',title:'',url:'',fmt:'',qual:'',percent:0,speed:'',eta:'',filePath:''};
+  tasks[taskId].status='error';
+  tasks[taskId].error=err||'';
   renderTasks();
 }
 
-function refreshHistory() {
+function refreshHistory(){
   try{downloadHistory=JSON.parse(Android.getDownloadHistory()).reverse()}catch(e){downloadHistory=[]}
 }
 
-function renderTasks() {
+function renderTasks(){
   const c=document.getElementById('taskList'),ids=Object.keys(tasks);
   if(!ids.length){c.innerHTML='<div class="empty">Нет активных загрузок</div>';return}
-  let h=''; ids.reverse().forEach(id=>{
+  let h='';ids.reverse().forEach(id=>{
     const t=tasks[id];
     h+='<div class="task-card"><div class="task-header"><span class="task-icon">'+(t.fmt==='mp3'?'🎵':'🎬')+'</span><span class="task-title">'+esc(t.title||t.url||'')+'</span></div>';
     if(t.status==='downloading'){
@@ -299,73 +233,55 @@ function renderTasks() {
   c.innerHTML=h;
 }
 
-// === LIBRARY PAGE ===
-function renderLibrary() {
-  const c = document.getElementById('libraryDownloads');
+function renderLibrary(){
+  const c=document.getElementById('libraryDownloads');
   if(!downloadHistory.length){c.innerHTML='<div class="empty">Пусто</div>';return}
-  let h=''; downloadHistory.forEach(e=>{
-    let entry; try{entry=typeof e==='string'?JSON.parse(e):e}catch(_){entry=e}
+  let h='';downloadHistory.forEach(e=>{
+    // H6: теперь entry — JSONObject, не JSON-строка
+    let entry=e;
+    if(typeof e==='string'){try{entry=JSON.parse(e)}catch(_){}}
     if(!entry||!entry.url)return;
     h+='<div class="done-card"><div class="done-title">🎬 '+esc(entry.title||entry.url)+'</div>';
     h+='<div class="done-meta">'+(entry.format||'mp4')+' · '+(entry.quality||'best')+' · '+timeAgo(entry.time)+'</div>';
     h+='<div class="done-actions">';
     if(entry.filePath)h+='<button class="btn btn-sm" onclick="Android.openFile(\''+esc(entry.filePath)+'\')">▶ Открыть</button>';
     h+='<button class="btn btn-sm" onclick="Android.openFolder(\''+esc(downloadDir)+'\')">📁 Папка</button>';
-    h+='<button class="btn btn-sm" onclick="deleteFile(\''+esc(entry.filePath)+'\')">🗑 Удалить</button>';
+    h+='<button class="btn btn-sm" onclick="deleteFile(\''+esc(entry.filePath||'')+'\')">🗑 Удалить</button>';
     h+='</div></div>';
   });
-  c.innerHTML = h;
+  c.innerHTML=h;
 }
 
-// === UPDATE CHECK ===
-function checkUpdate() {
-  document.getElementById('updateStatus').innerHTML = 'Проверка...';
+function checkUpdate(){
+  document.getElementById('updateStatus').innerHTML='Проверка...';
   Android.checkUpdate();
 }
-function onUpdateResult(resultStr) {
-  try {
-    const r = JSON.parse(resultStr);
-    if (r.error) { document.getElementById('updateStatus').textContent = '⚠ ' + r.error; return; }
-    const current = r.current || '1.0.0';
-    const latest = r.latest || '?';
-    const downloadUrl = r.downloadUrl || '';
-    if (latest === current || !latest || latest === '?') {
-      document.getElementById('updateStatus').innerHTML = '✓ У вас последняя версия (' + current + ')';
-    } else if (downloadUrl) {
-      document.getElementById('updateStatus').innerHTML = '🆕 Доступна v' + latest + ' <button class="btn btn-sm btn-primary" onclick="downloadUpdate(\'' + esc(downloadUrl) + '\')">⬇ Скачать</button>';
-    } else {
-      document.getElementById('updateStatus').textContent = '🆕 Доступна v' + latest + ' (нет APK)';
+function onUpdateResult(resultStr){
+  try{
+    const r=JSON.parse(resultStr);
+    if(r.error){document.getElementById('updateStatus').textContent='⚠ '+r.error;return}
+    const current=r.current||'1.0.0',latest=r.latest||'?',downloadUrl=r.downloadUrl||'';
+    if(latest===current||!latest||latest==='?'){
+      document.getElementById('updateStatus').innerHTML='✓ У вас последняя версия ('+current+')';
+    }else if(downloadUrl){
+      document.getElementById('updateStatus').innerHTML='🆕 Доступна v'+latest+' <button class="btn btn-sm btn-primary" onclick="downloadUpdate(\''+esc(downloadUrl)+'\')">⬇ Скачать</button>';
+    }else{
+      document.getElementById('updateStatus').textContent='🆕 Доступна v'+latest+' (нет APK)';
     }
-  } catch(e) { document.getElementById('updateStatus').textContent = '⚠ Ошибка'; }
+  }catch(e){document.getElementById('updateStatus').textContent='⚠ Ошибка'}
 }
-function downloadUpdate(url) {
-  document.getElementById('updateStatus').innerHTML = 'Скачивание... <span id="dlPct">0%</span>';
+function downloadUpdate(url){
+  document.getElementById('updateStatus').innerHTML='Скачивание... <span id="dlPct">0%</span>';
   Android.downloadUpdate(url);
 }
-function onUpdateProgress(pct) {
-  const el = document.getElementById('dlPct');
-  if (el) el.textContent = pct + '%';
-}
+function onUpdateProgress(pct){const el=document.getElementById('dlPct');if(el)el.textContent=pct+'%'}
 
-// === UTILS ===
 function openFile(tid){const t=tasks[tid];if(t&&t.filePath)Android.openFile(t.filePath);else toast('Файл не найден')}
 function retryDownload(tid){const t=tasks[tid];if(!t)return;const nid='task_'+(++taskCounter);tasks[nid]={...t,id:nid,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks();Android.startDownload(t.url,t.fmt,t.qual,nid,downloadDir,t.lang||'')}
 function esc(s){const d=document.createElement('div');d.textContent=(s||'');return d.innerHTML}
 function shortenPath(p){const parts=p.split('/');return parts.length>3?'.../'+parts.slice(-2).join('/'):p}
-function toggleSection(id) {
-  const el = document.getElementById(id);
-  const arrow = document.getElementById('libArrow');
-  if (el.style.display === 'none') { el.style.display = 'block'; arrow.textContent = '▼'; }
-  else { el.style.display = 'none'; arrow.textContent = '▶'; }
-}
-function deleteFile(filePath) {
-  if (!filePath) return;
-  if (confirm('Удалить файл?')) {
-    Android.deleteFile(filePath);
-    toast('Файл удалён');
-    refreshHistory(); renderLibrary();
-  }
-}
+function toggleSection(id){const el=document.getElementById(id),arrow=document.getElementById('libArrow');if(el.style.display==='none'){el.style.display='block';arrow.textContent='▼'}else{el.style.display='none';arrow.textContent='▶'}}
+function deleteFile(filePath){if(!filePath)return;if(confirm('Удалить файл?')){Android.deleteFile(filePath);toast('Файл удалён');refreshHistory();renderLibrary()}}
 function timeAgo(ts){if(!ts)return'';const s=(Date.now()-ts)/1000;if(s<60)return'только что';if(s<3600)return Math.floor(s/60)+'м';if(s<86400)return Math.floor(s/3600)+'ч';return Math.floor(s/86400)+'д'}
 function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2500)}
 </script>
