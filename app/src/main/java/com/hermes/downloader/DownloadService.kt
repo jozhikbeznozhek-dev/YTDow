@@ -3,10 +3,13 @@ package com.hermes.downloader
 import android.app.NotificationManager
 import android.app.Service
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.IBinder
+import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.yausername.youtubedl_android.YoutubeDL
@@ -118,8 +121,11 @@ class DownloadService : Service() {
                 }
 
                 if (active.containsKey(tid)) {
-                    saveToHistory(url, title, fmt, qual, filePath)
-                    sendComplete(tid, filePath)
+                    // Копируем в публичную папку через MediaStore (доступно без root)
+                    val publicPath = copyToPublicDownloads(filePath, title)
+                    val finalPath = if (publicPath != null) publicPath else filePath
+                    saveToHistory(url, title, fmt, qual, finalPath)
+                    sendComplete(tid, finalPath)
                 }
             } catch (e: Exception) {
                 if (active.containsKey(tid)) {
@@ -161,6 +167,34 @@ class DownloadService : Service() {
             }
             prefs.edit().putString("download_history", trimmed.toString()).apply()
         } catch (_: Exception) {}
+    }
+
+    // Копирует файл в публичную папку Download/YTDow через MediaStore
+    private fun copyToPublicDownloads(srcPath: String, title: String): String? {
+        if (srcPath.isEmpty() || !File(srcPath).exists()) return null
+        try {
+            val fileName = File(srcPath).name
+            val mime = when {
+                fileName.endsWith(".mp3") -> "audio/mpeg"
+                fileName.endsWith(".mp4") -> "video/mp4"
+                else -> "*/*"
+            }
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, mime)
+                put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTDow")
+            }
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: return null
+            contentResolver.openOutputStream(uri)?.use { out ->
+                File(srcPath).inputStream().use { inp -> inp.copyTo(out) }
+            }
+            // Удаляем исходник из приватной папки
+            File(srcPath).delete()
+            return srcPath  // возвращаем исходный путь — yt-dlp его знает
+        } catch (_: Exception) {
+            return null
+        }
     }
 
     private fun notifySummary() {

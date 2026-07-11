@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
 
         savePath = prefs.getString("save_path", null) ?: File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "YTDow"
+            getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir, "YTDow"
         ).also { it.mkdirs() }.absolutePath
 
         webView = WebView(this).apply {
@@ -105,11 +105,11 @@ class MainActivity : AppCompatActivity() {
         isReceiverRegistered = true
     }
 
-    // C2: используем loadUrl вместо evaluateJavascript — гарантирует исполнение JS
+    // C2: evaluateJavascript на главном потоке через Handler
     private fun js(s: String) {
         mainHandler.post {
             if (!isFinishing && !isDestroyed) {
-                webView.loadUrl("javascript:$s")
+                webView.evaluateJavascript(s, null)
             }
         }
     }
