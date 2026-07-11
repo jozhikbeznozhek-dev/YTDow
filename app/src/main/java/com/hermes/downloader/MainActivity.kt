@@ -147,7 +147,25 @@ class MainActivity : AppCompatActivity() {
                                 if (fs > bestSize) bestSize = fs
                             }
 
-                            // Формируем строку размеров по высотам
+                            // Собираем аудиодорожки (языки)
+                            val audioLangs = linkedSetOf<String>()
+                            for (fi in 0 until formats.length()) {
+                                val f = formats.getJSONObject(fi)
+                                val lang = f.optString("language", "").trim()
+                                if (lang.isNotEmpty() && lang != "und") {
+                                    val label = when (lang) {
+                                        "ru" -> "🇷🇺 Русский"; "en" -> "🇬🇧 English"
+                                        "de" -> "🇩🇪 Deutsch"; "fr" -> "🇫🇷 Français"
+                                        "es" -> "🇪🇸 Español"; "it" -> "🇮🇹 Italiano"
+                                        "ja" -> "🇯🇵 日本語"; "ko" -> "🇰🇷 한국어"
+                                        "zh" -> "🇨🇳 中文"; "pt" -> "🇵🇹 Português"
+                                        "ar" -> "🇸🇦 العربية"; "hi" -> "🇮🇳 हिन्दी"
+                                        else -> lang.uppercase()
+                                    }
+                                    audioLangs.add(lang)
+                                    if (audioLangs.size >= 12) break
+                                }
+                            }
                             val sizes = mutableListOf<String>()
                             val sortedHeights = heightSizes.keys.sortedByDescending { it.removeSuffix("p").toInt() }
                             for (h in sortedHeights) {
@@ -173,6 +191,7 @@ class MainActivity : AppCompatActivity() {
                                 put("totalSize", totalSizeStr)
                                 put("sizes", sizes.joinToString("\n"))
                                 put("heights", JSONArray(sortedHeights))
+                                put("audioLanguages", JSONArray(audioLangs.toList()))
                             }
                             js("onCalcResult('${esc(result.toString())}')")
                         } catch (e: Exception) {
@@ -186,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun startDownload(url: String, format: String, quality: String, taskId: String, customPath: String) {
+        fun startDownload(url: String, format: String, quality: String, taskId: String, customPath: String, audioLang: String) {
             if (customPath.isNotEmpty() && customPath != savePath) { savePath = customPath; prefs.edit().putString("save_path", customPath).apply() }
             val arr = try { JSONArray(prefs.getString("history", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
             for (i in arr.length()-1 downTo 0) if (arr.getString(i) == url) arr.remove(i); arr.put(url)
@@ -195,7 +214,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this@MainActivity, DownloadService::class.java).apply {
                 putExtra(DownloadService.EXTRA_URL, url); putExtra(DownloadService.EXTRA_FORMAT, format)
                 putExtra(DownloadService.EXTRA_QUALITY, quality); putExtra(DownloadService.EXTRA_TASK_ID, taskId)
-                putExtra(DownloadService.EXTRA_SAVE_PATH, savePath)
+                putExtra(DownloadService.EXTRA_SAVE_PATH, savePath); putExtra(DownloadService.EXTRA_AUDIO_LANG, audioLang)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
         }

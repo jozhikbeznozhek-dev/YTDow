@@ -41,6 +41,7 @@ class DownloadService : Service() {
         val url = intent?.getStringExtra(EXTRA_URL) ?: return START_NOT_STICKY
         val fmt = intent.getStringExtra(EXTRA_FORMAT) ?: "mp4"
         val qual = intent.getStringExtra(EXTRA_QUALITY) ?: "best"
+        val lang = intent.getStringExtra(EXTRA_AUDIO_LANG) ?: ""
         val tid = intent.getStringExtra(EXTRA_TASK_ID) ?: "unknown"
         val save = intent.getStringExtra(EXTRA_SAVE_PATH) ?: return START_NOT_STICKY
 
@@ -65,8 +66,9 @@ class DownloadService : Service() {
                         }
                         else -> {
                             addOption("--merge-output-format", "mp4")
-                            if (qual == "best") addOption("-f", "bestvideo+bestaudio/best")
-                            else addOption("-f", "bestvideo[height<=${qual.replace("p", "")}]+bestaudio/best")
+                            val langFilter = if (lang.isNotEmpty()) "[language=${lang}]" else ""
+                            if (qual == "best") addOption("-f", "bestvideo+bestaudio${langFilter}/best")
+                            else addOption("-f", "bestvideo[height<=${qual.replace("p", "")}]+bestaudio${langFilter}/best")
                         }
                     }
                 }
@@ -154,6 +156,6 @@ class DownloadService : Service() {
         const val EXTRA_URL = "url"; const val EXTRA_FORMAT = "format"; const val EXTRA_QUALITY = "quality"
         const val EXTRA_TASK_ID = "taskId"; const val EXTRA_SAVE_PATH = "savePath"; const val EXTRA_PERCENT = "percent"
         const val EXTRA_SPEED = "speed"; const val EXTRA_ETA = "eta"; const val EXTRA_ERROR = "error"
-        const val EXTRA_FILE_PATH = "filePath"
+        const val EXTRA_FILE_PATH = "filePath"; const val EXTRA_AUDIO_LANG = "audioLang"
     }
 }

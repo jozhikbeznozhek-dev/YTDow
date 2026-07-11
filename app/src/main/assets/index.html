@@ -97,6 +97,9 @@ h2{font-size:15px;color:#b0b0b0;margin:16px 0 8px;font-weight:500}
       <option value="best">best</option><option value="2160p">2160p</option><option value="1440p">1440p</option>
       <option value="1080p">1080p</option><option value="720p">720p</option><option value="480p">480p</option>
     </select>
+    <select id="langSelect" style="display:none">
+      <option value="">🎙 Авто</option>
+    </select>
     <button class="btn btn-folder" onclick="changePath()">📁</button>
     <span id="pathLabel" style="font-size:11px;color:#6d6d6d;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     <button class="btn btn-calc" onclick="calcSize()">📊 Размер</button>
@@ -215,6 +218,12 @@ function onCalcResult(resultStr) {
     if(p.heights&&p.heights.length){ const qs=document.getElementById('qualitySelect'),cur=qs.value;
       qs.innerHTML='<option value="best">best</option>'+p.heights.map(h=>'<option value="'+h+'">'+h+'</option>').join('');
       if([...qs.options].some(o=>o.value===cur))qs.value=cur; }
+    // Аудиодорожки
+    const ls=document.getElementById('langSelect');
+    if(p.audioLanguages&&p.audioLanguages.length>1){
+      ls.innerHTML='<option value="">🎙 Авто</option>'+p.audioLanguages.map(l=>'<option value="'+l+'">'+langLabel(l)+'</option>').join('');
+      ls.style.display='';}
+    else{ls.style.display='none';ls.value='';}
   } catch(e) { showCalcError('Ошибка разбора'); }
 }
 function showCalcError(msg) {
@@ -223,16 +232,24 @@ function showCalcError(msg) {
   setTimeout(()=>{el.style.display='none';document.getElementById('calcCard').classList.remove('show')},3000);
 }
 
+function langLabel(lang) {
+  const map={ru:"🇷🇺 Русский",en:"🇬🇧 English",de:"🇩🇪 Deutsch",fr:"🇫🇷 Français",
+            es:"🇪🇸 Español",it:"🇮🇹 Italiano",ja:"🇯🇵 日本語",ko:"🇰🇷 한국어",
+            zh:"🇨🇳 中文",pt:"🇵🇹 Português",ar:"🇸🇦 العربية",hi:"🇮🇳 हिन्दी"};
+  return map[lang]||lang.toUpperCase();
+}
+
 function startDownload() {
   const raw = document.getElementById('urlInput').value.trim();
   if(!raw)return toast('Вставьте ссылку');
   const urls = raw.split(',').map(u=>u.trim()).filter(u=>u.startsWith('http'));
   if(!urls.length)return toast('Нет ссылок');
   const fmt=document.getElementById('formatSelect').value, qual=document.getElementById('qualitySelect').value;
+  const lang=document.getElementById('langSelect').value;
   urls.forEach(url=>{
     const tid='task_'+(++taskCounter);
-    tasks[tid]={id:tid,url,fmt,qual,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
-    Android.startDownload(url,fmt,qual,tid,downloadDir);
+    tasks[tid]={id:tid,url,fmt,qual,lang,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
+    Android.startDownload(url,fmt,qual,tid,downloadDir,lang);
   });
   document.getElementById('urlInput').value=''; document.getElementById('calcCard').classList.remove('show');
   renderTasks();
@@ -332,7 +349,7 @@ function onUpdateProgress(pct) {
 
 // === UTILS ===
 function openFile(tid){const t=tasks[tid];if(t&&t.filePath)Android.openFile(t.filePath);else toast('Файл не найден')}
-function retryDownload(tid){const t=tasks[tid];if(!t)return;const nid='task_'+(++taskCounter);tasks[nid]={...t,id:nid,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks();Android.startDownload(t.url,t.fmt,t.qual,nid,downloadDir)}
+function retryDownload(tid){const t=tasks[tid];if(!t)return;const nid='task_'+(++taskCounter);tasks[nid]={...t,id:nid,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks();Android.startDownload(t.url,t.fmt,t.qual,nid,downloadDir,t.lang||'')}
 function esc(s){const d=document.createElement('div');d.textContent=(s||'');return d.innerHTML}
 function shortenPath(p){const parts=p.split('/');return parts.length>3?'.../'+parts.slice(-2).join('/'):p}
 function toggleSection(id) {
