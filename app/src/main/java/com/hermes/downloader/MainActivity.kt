@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
 
         savePath = prefs.getString("save_path", null) ?: File(
