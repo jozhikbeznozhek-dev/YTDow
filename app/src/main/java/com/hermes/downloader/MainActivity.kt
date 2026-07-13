@@ -8,16 +8,21 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
+import android.provider.MediaStore
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import com.yausername.youtubedl_android.YoutubeDL
+import android.util.Log
+import kotlin.concurrent.thread
+import kotlin.math.roundToLong
 
 class MainActivity : AppCompatActivity() {
 
@@ -55,9 +60,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
 
-        savePath = prefs.getString("save_path", null) ?: File(
-            getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir, "YTDow"
-        ).also { it.mkdirs() }.absolutePath
+        val defaultSaveDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "YTDow").apply { mkdirs() }
+        savePath = defaultSaveDir.absolutePath
+        prefs.edit().putString("save_path", savePath).apply()
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -73,19 +78,6 @@ class MainActivity : AppCompatActivity() {
         createChannel()
         requestNotifyPerm()
         webView.loadUrl("file:///android_asset/index.html")
-
-        // Автообновление yt-dlp (только при первом запуске или раз в 7 дней)
-        val lastUpdate = prefs.getLong("ytdlp_updated", 0)
-        if (System.currentTimeMillis() - lastUpdate > 7 * 24 * 3600_000L) {
-            Thread {
-                try {
-                    YoutubeDL.getInstance().init(this)
-                    YoutubeDL.getInstance().updateYoutubeDL(this, com.yausername.youtubedl_android.YoutubeDL.UpdateChannel._NIGHTLY)
-                    prefs.edit().putLong("ytdlp_updated", System.currentTimeMillis()).apply()
-                    toast("yt-dlp обновлён")
-                } catch (_: Exception) {}
-            }.start()
-        }
     }
 
     override fun onStart() { super.onStart(); register() }
@@ -195,14 +187,15 @@ class MainActivity : AppCompatActivity() {
         fun openFile(filePath: String) {
             try {
                 val file = File(filePath)
-                if (!file.exists()) {
+                val uri = findDownloadUri(filePath)
+                    ?: if (file.exists()) FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", file) else null
+                if (uri == null) {
                     toast("Файл не найден: ${file.name}")
                     return
                 }
-                val uri = FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", file)
                 val mime = when {
-                    filePath.endsWith(".mp3") -> "audio/mpeg"
-                    filePath.endsWith(".mp4") -> "video/mp4"
+                    filePath.endsWith(".mp3", true) -> "audio/mpeg"
+                    filePath.endsWith(".mp4", true) -> "video/mp4"
                     else -> "*/*"
                 }
                 val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -211,7 +204,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 try {
                     startActivity(intent)
-                } catch (e: android.content.ActivityNotFoundException) {
+                } catch (_: android.content.ActivityNotFoundException) {
                     toast("Нет приложения для открытия файла")
                 }
             } catch (e: Exception) {
@@ -221,8 +214,12 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun openFolder(path: String) = try {
+            val folderUri = when {
+                path.startsWith("file://") || path.startsWith("content://") -> Uri.parse(path)
+                else -> Uri.parse("file://$path")
+            }
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(Uri.parse(path), "resource/folder")
+                setDataAndType(folderUri, "resource/folder")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             try {
@@ -234,25 +231,87 @@ class MainActivity : AppCompatActivity() {
             toast("Папка: $path")
         }
 
+        @JavascriptInterface
+        fun checkSize(url: String, format: String, quality: String, audioLang: String) {
+            thread(name = "ytdow-size") {
+                try {
+                    Log.d("YTDowSize", "checkSize called url=$url format=$format quality=$quality audioLang=$audioLang")
+                    YoutubeDL.getInstance().init(this@MainActivity)
+                    val request = YoutubeDLRequest(url).apply {
+                        addOption("--no-playlist")
+                        when {
+                            format == "mp3" -> addOption("-f", "bestaudio/best")
+                            quality == "best" -> {
+                                val langFilter = if (audioLang.isNotEmpty()) "[language=${audioLang}]" else ""
+                                addOption("-f", "bestvideo+bestaudio${langFilter}/best")
+                            }
+                            else -> {
+                                val height = quality.removeSuffix("p")
+                                val langFilter = if (audioLang.isNotEmpty()) "[language=${audioLang}]" else ""
+                                addOption("-f", "bestvideo[height<=${height}]+bestaudio${langFilter}/best")
+                            }
+                        }
+                    }
+                    val info = YoutubeDL.getInstance().getInfo(request)
+                    val sizeBytes = when {
+                        info.fileSize > 0 -> info.fileSize
+                        info.fileSizeApproximate > 0 -> info.fileSizeApproximate
+                        else -> 0L
+                    }
+                    val payload = JSONObject().apply {
+                        put("sizeBytes", sizeBytes)
+                        put("title", info.title ?: "")
+                        put("format", format)
+                        put("quality", quality)
+                    }
+                    js("onSizeResult('${escJs(payload.toString())}')")
+                } catch (e: Exception) {
+                    js("onSizeError('${escJs(e.message ?: "Не удалось определить размер")}')")
+                }
+            }
+        }
+
         @JavascriptInterface fun showToast(msg: String) { toast(msg) }
 
         @JavascriptInterface
         fun deleteFile(filePath: String) {
             try {
+                val uri = findDownloadUri(filePath)
                 val file = File(filePath)
-                if (!file.exists()) {
-                    // Файла нет — чистим историю и выходим
-                    removeHistoryEntry(filePath)
-                    return
+                val deleted = when {
+                    uri != null -> contentResolver.delete(uri, null, null) > 0
+                    file.exists() -> file.delete()
+                    else -> true // файл уже удалён вручную — чистим только историю
                 }
-                if (!file.delete()) {
+                if (!deleted) {
                     toast("Не удалось удалить файл")
                     return
                 }
                 removeHistoryEntry(filePath)
+                js("onHistoryChanged()")
             } catch (e: Exception) {
                 toast("Ошибка: ${e.message}")
             }
+        }
+
+        private fun findDownloadUri(filePath: String): Uri? {
+            val fileName = File(filePath).name
+            if (fileName.isBlank()) return null
+            val projection = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.RELATIVE_PATH)
+            val selection = "${MediaStore.Downloads.DISPLAY_NAME}=?"
+            val args = arrayOf(fileName)
+            contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null)?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+                while (cursor.moveToNext()) {
+                    val relativePath = cursor.getString(pathColumn) ?: ""
+                    if (relativePath == "Download/YTDow/" || relativePath == "Download/YTDow") {
+                        val id = cursor.getLong(idColumn)
+                        return Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
+                    }
+                }
+            }
+            return null
         }
 
         // H6: история теперь как массив JSONObject, а не строк

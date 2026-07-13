@@ -12,6 +12,8 @@ import android.os.IBinder
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.yausername.ffmpeg.FFmpeg
+import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONObject
@@ -75,12 +77,14 @@ class DownloadService : Service() {
             // Единственный вызов mkdirs
                 File(save).mkdirs()
                 YoutubeDL.getInstance().init(this@DownloadService)
+                FFmpeg.getInstance().init(this@DownloadService)
 
                 val req = YoutubeDLRequest(url).apply {
                     addOption("-o", "$save/%(title)s.%(ext)s")
                     addOption("--no-playlist")
                     addOption("--no-colors")
                     addOption("--no-mtime")
+                    addOption("--no-keep-video")
                     addOption("--print", "after_move:filepath")
                     addOption("--print", "%(title)s")
 
@@ -107,7 +111,15 @@ class DownloadService : Service() {
                 var title = ""
                 YoutubeDL.getInstance().execute(req, tid) { pct, eta, line ->
                     if (!active.containsKey(tid)) return@execute
-                    val p = pct.roundToInt().coerceIn(0, 100)
+                    Log.d("YTDowLine", "pct=$pct eta=$eta line=$line")
+                    // Библиотека не парсит прогресс (pct всегда -1.0), stdout содержит только --print.
+                    // Шлём -1 как индикатор "indeterminate" — UI покажет анимацию вместо 0%.
+                    val parsedPercent = Regex("""(\d+(?:\.\d+)?)%""").find(line)?.groupValues?.get(1)?.toDoubleOrNull()
+                    val p = when {
+                        pct > 0.0f -> pct.roundToInt()
+                        parsedPercent != null -> parsedPercent.roundToInt()
+                        else -> -1
+                    }.coerceIn(-1, 100)
                     val spd = Regex("""at\s+(\S+)\s""").find(line)?.groupValues?.get(1).orEmpty()
                     val et = Regex("""ETA\s+(\S+)""").find(line)?.groupValues?.get(1).orEmpty()
                     sendProgress(tid, p, spd, et)
@@ -121,9 +133,11 @@ class DownloadService : Service() {
                 }
 
                 if (active.containsKey(tid)) {
-                    // Копируем в публичную папку через MediaStore (доступно без root)
-                    val publicPath = copyToPublicDownloads(filePath)
-                    val finalPath = if (publicPath != null) publicPath else filePath
+                    val finalPath = if (isPublicDownloadPath(filePath)) {
+                        filePath
+                    } else {
+                        copyToPublicDownloads(filePath) ?: filePath
+                    }
                     saveToHistory(url, title, fmt, qual, finalPath)
                     sendComplete(tid, finalPath)
                 }
@@ -169,10 +183,16 @@ class DownloadService : Service() {
         } catch (_: Exception) {}
     }
 
+    private fun isPublicDownloadPath(path: String): Boolean {
+        val normalized = path.trimEnd('/')
+        return normalized == "/storage/emulated/0/Download" || normalized.startsWith("/storage/emulated/0/Download/")
+    }
+
     private fun copyToPublicDownloads(srcPath: String): String? {
         if (srcPath.isEmpty() || !File(srcPath).exists()) return null
         try {
-            val fileName = File(srcPath).name
+            val sourceFile = File(srcPath)
+            val fileName = sourceFile.name
             val mime = when {
                 fileName.endsWith(".mp3") -> "audio/mpeg"
                 fileName.endsWith(".mp4") -> "video/mp4"
@@ -186,11 +206,13 @@ class DownloadService : Service() {
             val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: return null
             contentResolver.openOutputStream(uri)?.use { out ->
-                File(srcPath).inputStream().use { inp -> inp.copyTo(out) }
-            }
-            // Удаляем исходник из приватной папки
-            File(srcPath).delete()
-            return srcPath  // возвращаем исходный путь — yt-dlp его знает
+                sourceFile.inputStream().use { inp -> inp.copyTo(out) }
+            } ?: return null
+
+            // Удаляем исходник из приватной папки только после успешной записи публичной копии.
+            sourceFile.delete()
+
+            return "/storage/emulated/0/Download/YTDow/$fileName"
         } catch (_: Exception) {
             return null
         }
