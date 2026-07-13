@@ -1,8 +1,8 @@
-/* Hermes Downloader — Минималистичный стиль в духе Telegram / macOS */
+/* YTDow — v1.1.0 redesign */
 
 QMainWindow {
-    background-color: #1e1e1e;
-    color: #e0e0e0;
+    background-color: #121212;
+    color: #ffffff;
 }
 
 QWidget {
@@ -14,148 +14,109 @@ QWidget {
 
 /* Поле ввода URL */
 QLineEdit {
-    background-color: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    border-radius: 8px;
+    background-color: #2C2C2C;
+    border: 1px solid #333;
+    border-radius: 10px;
     padding: 12px 16px;
     font-size: 14px;
     color: #ffffff;
-    selection-background-color: #007AFF;
+    selection-background-color: #1E88E5;
 }
-
 QLineEdit:focus {
-    border: 1px solid #007AFF;
+    border: 1px solid #1E88E5;
+    background-color: #333;
 }
-
 QLineEdit::placeholder {
-    color: #6d6d6d;
+    color: #757575;
 }
 
 /* Комбо-боксы */
 QComboBox {
-    background-color: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    border-radius: 6px;
-    padding: 6px 12px;
+    background-color: #1E1E1E;
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 6px 14px;
     min-width: 90px;
-    color: #e0e0e0;
+    color: #ffffff;
 }
-
-QComboBox:hover {
-    border: 1px solid #007AFF;
-}
-
-QComboBox::drop-down {
-    border: none;
-    padding-right: 8px;
-}
-
+QComboBox:hover { border: 1px solid #1E88E5; }
+QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
-    background-color: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    selection-background-color: #007AFF;
-    color: #e0e0e0;
+    background-color: #1E1E1E;
+    border: 1px solid #333;
+    selection-background-color: #1E88E5;
+    color: #ffffff;
 }
 
 /* Кнопки */
 QPushButton {
-    background-color: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    border-radius: 6px;
+    background-color: #1E1E1E;
+    border: 1px solid #333;
+    border-radius: 20px;
     padding: 8px 16px;
-    color: #e0e0e0;
+    color: #ffffff;
     font-weight: 500;
 }
-
 QPushButton:hover {
-    background-color: #3d3d3d;
-    border: 1px solid #4d4d4d;
+    background-color: #2a2a2a;
 }
-
 QPushButton:pressed {
     background-color: #252525;
 }
 
 QPushButton#download_btn {
-    background-color: #007AFF;
+    background-color: #1E88E5;
     color: white;
     border: none;
+    border-radius: 14px;
     font-weight: 600;
+    font-size: 15px;
+    padding: 14px;
 }
+QPushButton#download_btn:hover { background-color: #1565C0; }
+QPushButton#download_btn:pressed { background-color: #0D47A1; }
 
-QPushButton#download_btn:hover {
-    background-color: #0066d6;
-}
-
-QPushButton#download_btn:pressed {
-    background-color: #0055b3;
-}
-
-/* Скролл-область */
-QScrollArea {
-    border: none;
-    background-color: transparent;
-}
-
-QScrollBar:vertical {
-    background-color: transparent;
-    width: 6px;
-    border-radius: 3px;
-}
-
-QScrollBar::handle:vertical {
-    background-color: #4d4d4d;
-    border-radius: 3px;
-    min-height: 30px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background-color: #5d5d5d;
-}
-
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0;
-}
+/* Скролл */
+QScrollArea { border: none; background-color: transparent; }
+QScrollBar:vertical { background: transparent; width: 6px; border-radius: 3px; }
+QScrollBar::handle:vertical { background: #444; border-radius: 3px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: #555; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 
 /* Прогресс-бар */
 QProgressBar {
-    background-color: #2d2d2d;
+    background-color: #333;
     border: none;
-    border-radius: 3px;
+    border-radius: 4px;
     height: 6px;
     text-align: center;
 }
-
 QProgressBar::chunk {
-    background-color: #007AFF;
-    border-radius: 3px;
+    background-color: #1E88E5;
+    border-radius: 4px;
 }
 
 /* Лейблы */
-QLabel {
-    color: #b0b0b0;
-}
-
-QLabel#title_label {
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-QLabel#status_label {
-    font-size: 12px;
-}
-
-QLabel#error_label {
-    color: #ff453a;
-    font-size: 12px;
-}
+QLabel { color: #B0B0B0; }
+QLabel#title_label { color: #ffffff; font-size: 14px; font-weight: 600; }
+QLabel#status_label { font-size: 12px; }
+QLabel#error_label { color: #ef5350; font-size: 12px; }
 
 /* Карточка задачи */
 QFrame#task_card {
-    background-color: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    border-radius: 10px;
-    padding: 12px;
+    background-color: #1E1E1E;
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    padding: 14px;
 }
+
+/* Вкладки */
+QTabWidget::pane { border: none; background: transparent; }
+QTabBar::tab {
+    background: transparent;
+    color: #757575;
+    padding: 10px 20px;
+    border: none;
+    font-size: 13px;
+}
+QTabBar::tab:selected { color: #1E88E5; font-weight: 600; }

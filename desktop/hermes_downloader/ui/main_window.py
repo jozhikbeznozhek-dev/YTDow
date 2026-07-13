@@ -35,7 +35,7 @@ class MainWindow(QMainWindow):
         self.threadpool.setMaxThreadCount(4)
 
         self.task_manager = TaskManager(self.threadpool)
-        self.task_manager.save_path = os.path.expanduser("~/Downloads/Скачанное Ютуб")
+        self.task_manager.save_path = os.path.expanduser("~/Downloads/YTDow")
 
         self._setup_ui()
         self._load_styles()
@@ -213,7 +213,14 @@ class MainWindow(QMainWindow):
     def _open_file(self, file_path: str):
         if file_path and os.path.exists(file_path):
             import subprocess
-            subprocess.Popen(["open", file_path])
+            # Открыть Finder с выделенным файлом → правый клик → Открыть в программе
+            applescript = f'''
+            tell application "Finder"
+                activate
+                reveal POSIX file "{file_path}"
+            end tell
+            '''
+            subprocess.Popen(["osascript", "-e", applescript])
 
     def _delete_file(self, file_path: str):
         if not file_path:

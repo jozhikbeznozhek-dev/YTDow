@@ -1,4 +1,4 @@
-"""Hermes Downloader — точка входа."""
+"""YTDow — точка входа."""
 
 import sys
 import os
@@ -17,15 +17,15 @@ def main():
         """Показывает необработанные исключения в диалоге."""
         tb = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
         from PySide6.QtWidgets import QMessageBox
-        QMessageBox.critical(None, "Hermes Downloader — ошибка",
+        QMessageBox.critical(None, "YTDow — ошибка",
                              f"Необработанная ошибка:\n\n{tb[-1500:]}")
         sys.__excepthook__(exc_type, exc_value, exc_tb)
 
     sys.excepthook = excepthook
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Hermes Downloader")
-    app.setOrganizationName("Hermes")
+    app.setApplicationName("YTDow")
+    app.setOrganizationName("YTDow")
 
     window = MainWindow()
     window.show()
