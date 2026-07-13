@@ -14,8 +14,11 @@ local.properties
 *.aab
 *.jks
 *.keystore
+__pycache__/
+**/__pycache__/
+.hermes/
+apps_checklist.md
 desktop/venv/
 desktop/build/
 desktop/dist/
-desktop/**/__pycache__/
-__pycache__/
+desktop/*.spec

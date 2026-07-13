@@ -119,7 +119,6 @@ class MainActivity : AppCompatActivity() {
         isReceiverRegistered = true
     }
 
-    // C2: evaluateJavascript на главном потоке через Handler
     private fun js(s: String) {
         mainHandler.post {
             if (!isFinishing && !isDestroyed) {
@@ -128,7 +127,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // H5: правильный порядок: сначала экранируем бэкслеши, потом кавычки
     private fun escJs(s: String): String {
         return s.replace("\\", "\\\\")
             .replace("'", "\\'")
@@ -136,7 +134,6 @@ class MainActivity : AppCompatActivity() {
             .replace("\r", "")
     }
 
-    // M8: toast с проверкой на isFinishing
     private fun toast(msg: String) {
         mainHandler.post {
             if (!isFinishing && !isDestroyed) {
@@ -145,7 +142,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // H4: WebAppInterface как статический класс (не inner) — нет неявной ссылки на Activity
     inner class WebAppInterface {
         @JavascriptInterface fun getHistory(): String = prefs.getString("history", "[]") ?: "[]"
         @JavascriptInterface fun getDownloadHistory(): String = prefs.getString("download_history", "[]") ?: "[]"
@@ -195,7 +191,6 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        // M6: обработка ActivityNotFoundException
         @JavascriptInterface
         fun openFile(filePath: String) {
             try {

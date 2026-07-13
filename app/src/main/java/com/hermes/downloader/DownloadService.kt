@@ -24,7 +24,7 @@ class DownloadService : Service() {
 
     private val active = ConcurrentHashMap<String, Boolean>()
     private val pool = Executors.newFixedThreadPool(3)
-    @Volatile private var initDone = false   // H1: потокобезопасный флаг
+    @Volatile private var initDone = false
 
     private val cancelReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, i: Intent?) {
@@ -59,7 +59,7 @@ class DownloadService : Service() {
 
         active[tid] = true
 
-        // H1: синхронизированный первый запуск foreground
+        // Синхронизированный первый запуск foreground
         if (!initDone) {
             synchronized(this) {
                 if (!initDone) {
@@ -72,7 +72,7 @@ class DownloadService : Service() {
 
         pool.execute {
             try {
-                // H2: единственный вызов mkdirs
+            // Единственный вызов mkdirs
                 File(save).mkdirs()
                 YoutubeDL.getInstance().init(this@DownloadService)
 
@@ -122,7 +122,7 @@ class DownloadService : Service() {
 
                 if (active.containsKey(tid)) {
                     // Копируем в публичную папку через MediaStore (доступно без root)
-                    val publicPath = copyToPublicDownloads(filePath, title)
+                    val publicPath = copyToPublicDownloads(filePath)
                     val finalPath = if (publicPath != null) publicPath else filePath
                     saveToHistory(url, title, fmt, qual, finalPath)
                     sendComplete(tid, finalPath)
@@ -144,7 +144,7 @@ class DownloadService : Service() {
         return START_NOT_STICKY
     }
 
-    // H6: история — JSONObject, не JSON-строка внутри массива
+    // История — объекты внутри массива (не JSON-строки)
     private fun saveToHistory(url: String, title: String, fmt: String, qual: String, filePath: String) {
         try {
             val prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
@@ -169,8 +169,7 @@ class DownloadService : Service() {
         } catch (_: Exception) {}
     }
 
-    // Копирует файл в публичную папку Download/YTDow через MediaStore
-    private fun copyToPublicDownloads(srcPath: String, title: String): String? {
+    private fun copyToPublicDownloads(srcPath: String): String? {
         if (srcPath.isEmpty() || !File(srcPath).exists()) return null
         try {
             val fileName = File(srcPath).name
