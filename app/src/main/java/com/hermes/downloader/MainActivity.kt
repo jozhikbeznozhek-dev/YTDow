@@ -18,14 +18,12 @@ import androidx.core.content.FileProvider
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.hermes.downloader.presentation.main.MainViewModel
-import com.hermes.downloader.data.ServiceLocator
-import com.hermes.downloader.data.repository.DownloadRepositoryImpl
-import org.json.JSONArray
+import dagger.hilt.android.AndroidEntryPoint
+import androidx.activity.viewModels
 import org.json.JSONObject
 import java.io.File
 import android.util.Log
 import kotlin.concurrent.thread
-import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -35,7 +33,7 @@ class MainActivity : AppCompatActivity() {
     private var isReceiverRegistered = false
     private var savePath: String = ""
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val viewModel = MainViewModel()
+    private val viewModel: MainViewModel by viewModels()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, i: Intent?) {
@@ -206,8 +204,7 @@ class MainActivity : AppCompatActivity() {
         fun openFile(filePath: String) {
             try {
                 val file = File(filePath)
-                val repo = (ServiceLocator.downloadRepo as? DownloadRepositoryImpl)
-                val uri = repo?.findDownloadUri(filePath)
+                val uri = findDownloadUri(filePath)
                     ?: if (file.exists()) FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", file) else null
                 if (uri == null) {
                     toast("Файл не найден: ${file.name}")
@@ -344,5 +341,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun findDownloadUri(filePath: String): Uri? {
+        val fileName = File(filePath).name; if (fileName.isBlank()) return null
+        contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.RELATIVE_PATH),
+            "${MediaStore.Downloads.DISPLAY_NAME}=?", arrayOf(fileName), null)?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val pathCol = c.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            while (c.moveToNext())
+                if (c.getString(pathCol) in listOf("Download/YTDow/", "Download/YTDow"))
+                    return Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(idCol).toString())
+        }
+        return null
     }
 }

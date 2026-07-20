@@ -6,14 +6,21 @@ import com.hermes.downloader.domain.queue.QueueTask
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.hermes.downloader.core.Logger
 
 class QueueManagerImplTest {
 
     private lateinit var qm: QueueManagerImpl
+    private val stubLogger = object : Logger {
+        override fun d(tag: String, msg: String) {}
+        override fun e(tag: String, msg: String, throwable: Throwable?) {}
+        override fun w(tag: String, msg: String) {}
+        override fun i(tag: String, msg: String) {}
+    }
 
     @Before
     fun setUp() {
-        qm = QueueManagerImpl()
+        qm = QueueManagerImpl(stubLogger)
         qm.maxConcurrent = 2
     }
 
