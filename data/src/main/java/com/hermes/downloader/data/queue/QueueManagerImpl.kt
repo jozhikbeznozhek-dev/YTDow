@@ -94,12 +94,14 @@ class QueueManagerImpl(
 
     override fun onTaskCompleted(taskId: String, filePath: String, historyEntry: DownloadHistoryEntry) {
         downloading.remove(taskId)
-        tasks[taskId] = tasks[taskId]!!.copy(
-            state = DownloadState.COMPLETED,
-            filePath = filePath,
-            progress = 100,
-            title = historyEntry.title
-        )
+        tasks[taskId]?.let { task ->
+            tasks[taskId] = task.copy(
+                state = DownloadState.COMPLETED,
+                filePath = filePath,
+                progress = 100,
+                title = historyEntry.title
+            )
+        }
         logger?.d("YTDowQueue", "completed: $taskId path=$filePath")
         processQueue()
     }
@@ -117,19 +119,23 @@ class QueueManagerImpl(
     }
 
     override fun onTaskProgress(taskId: String, progress: Int, speed: String, eta: String) {
-        tasks[taskId] = tasks[taskId]!!.copy(
-            state = DownloadState.DOWNLOADING,
-            progress = progress,
-            speed = speed,
-            eta = eta
-        )
+        tasks[taskId]?.let { task ->
+            tasks[taskId] = task.copy(
+                state = DownloadState.DOWNLOADING,
+                progress = progress,
+                speed = speed,
+                eta = eta
+            )
+        }
     }
 
     override fun onTaskPrepared(taskId: String, metadata: VideoMetadata) {
-        tasks[taskId] = tasks[taskId]!!.copy(
-            state = DownloadState.PREPARING,
-            title = metadata.title
-        )
+        tasks[taskId]?.let { task ->
+            tasks[taskId] = task.copy(
+                state = DownloadState.PREPARING,
+                title = metadata.title
+            )
+        }
     }
 
     override fun nextDownloadTask(): QueueTask? {

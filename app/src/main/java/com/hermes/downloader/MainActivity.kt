@@ -66,8 +66,7 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
 
         val defaultSaveDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "YTDow").apply { mkdirs() }
-        savePath = defaultSaveDir.absolutePath
-        prefs.edit().putString("save_path", savePath).apply()
+        savePath = prefs.getString("save_path", null)?.takeIf { File(it).exists() } ?: defaultSaveDir.absolutePath
 
         // Auto-update yt-dlp once per week
         val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
@@ -85,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.allowFileAccess = true
+            settings.allowFileAccess = false
             settings.mediaPlaybackRequiresUserGesture = false
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
