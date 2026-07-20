@@ -11,8 +11,8 @@ android {
         applicationId = "com.hermes.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "2.0.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

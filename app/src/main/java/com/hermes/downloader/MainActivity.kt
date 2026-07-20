@@ -17,11 +17,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.hermes.downloader.presentation.main.MainViewModel
+import com.hermes.downloader.core.ServiceLocator
+import com.hermes.downloader.data.repository.DownloadRepositoryImpl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import android.util.Log
-import kotlin.concurrent.thread
 import kotlin.math.roundToLong
 
 class MainActivity : AppCompatActivity() {
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private var isReceiverRegistered = false
     private var savePath: String = ""
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val viewModel = MainViewModel()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, i: Intent?) {
@@ -135,9 +138,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class WebAppInterface {
-        @JavascriptInterface fun getHistory(): String = prefs.getString("history", "[]") ?: "[]"
-        @JavascriptInterface fun getDownloadHistory(): String = prefs.getString("download_history", "[]") ?: "[]"
-        @JavascriptInterface fun getDownloadDir(): String = savePath
+        @JavascriptInterface fun getHistory(): String = viewModel.getUrlHistory()
+        @JavascriptInterface fun getDownloadHistory(): String = viewModel.getHistoryJson()
+        @JavascriptInterface fun getDownloadDir(): String = viewModel.getSavePath()
 
         @JavascriptInterface
         fun startDownload(url: String, format: String, quality: String, taskId: String, customPath: String, audioLang: String) {
@@ -187,7 +190,8 @@ class MainActivity : AppCompatActivity() {
         fun openFile(filePath: String) {
             try {
                 val file = File(filePath)
-                val uri = findDownloadUri(filePath)
+                val repo = (ServiceLocator.downloadRepo as? DownloadRepositoryImpl)
+                val uri = repo?.findDownloadUri(filePath)
                     ?: if (file.exists()) FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", file) else null
                 if (uri == null) {
                     toast("Файл не найден: ${file.name}")
@@ -233,41 +237,14 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun checkSize(url: String, format: String, quality: String, audioLang: String) {
-            thread(name = "ytdow-size") {
-                try {
-                    Log.d("YTDowSize", "checkSize called url=$url format=$format quality=$quality audioLang=$audioLang")
-                    YoutubeDL.getInstance().init(this@MainActivity)
-                    val request = YoutubeDLRequest(url).apply {
-                        addOption("--no-playlist")
-                        when {
-                            format == "mp3" -> addOption("-f", "bestaudio/best")
-                            quality == "best" -> {
-                                val langFilter = if (audioLang.isNotEmpty()) "[language=${audioLang}]" else ""
-                                addOption("-f", "bestvideo+bestaudio${langFilter}/best")
-                            }
-                            else -> {
-                                val height = quality.removeSuffix("p")
-                                val langFilter = if (audioLang.isNotEmpty()) "[language=${audioLang}]" else ""
-                                addOption("-f", "bestvideo[height<=${height}]+bestaudio${langFilter}/best")
-                            }
-                        }
-                    }
-                    val info = YoutubeDL.getInstance().getInfo(request)
-                    val sizeBytes = when {
-                        info.fileSize > 0 -> info.fileSize
-                        info.fileSizeApproximate > 0 -> info.fileSizeApproximate
-                        else -> 0L
-                    }
-                    val payload = JSONObject().apply {
-                        put("sizeBytes", sizeBytes)
-                        put("title", info.title ?: "")
-                        put("format", format)
-                        put("quality", quality)
-                    }
-                    js("onSizeResult('${escJs(payload.toString())}')")
-                } catch (e: Exception) {
-                    js("onSizeError('${escJs(e.message ?: "Не удалось определить размер")}')")
+            viewModel.calculateSize(url, format, quality, audioLang) { sizeBytes, title ->
+                val payload = JSONObject().apply {
+                    put("sizeBytes", sizeBytes)
+                    put("title", title)
+                    put("format", format)
+                    put("quality", quality)
                 }
+                js("onSizeResult('${escJs(payload.toString())}')")
             }
         }
 
@@ -275,68 +252,13 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun deleteFile(filePath: String) {
-            try {
-                val uri = findDownloadUri(filePath)
-                val file = File(filePath)
-                val deleted = when {
-                    uri != null -> contentResolver.delete(uri, null, null) > 0
-                    file.exists() -> file.delete()
-                    else -> true // файл уже удалён вручную — чистим только историю
-                }
-                if (!deleted) {
-                    toast("Не удалось удалить файл")
-                    return
-                }
-                removeHistoryEntry(filePath)
-                js("onHistoryChanged()")
-            } catch (e: Exception) {
-                toast("Ошибка: ${e.message}")
-            }
-        }
-
-        private fun findDownloadUri(filePath: String): Uri? {
-            val fileName = File(filePath).name
-            if (fileName.isBlank()) return null
-            val projection = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.RELATIVE_PATH)
-            val selection = "${MediaStore.Downloads.DISPLAY_NAME}=?"
-            val args = arrayOf(fileName)
-            contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null)?.use { cursor ->
-                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
-                while (cursor.moveToNext()) {
-                    val relativePath = cursor.getString(pathColumn) ?: ""
-                    if (relativePath == "Download/YTDow/" || relativePath == "Download/YTDow") {
-                        val id = cursor.getLong(idColumn)
-                        return Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
-                    }
-                }
-            }
-            return null
-        }
-
-        // H6: история теперь как массив JSONObject, а не строк
-        private fun removeHistoryEntry(filePath: String) {
-            try {
-                val hist = prefs.getString("download_history", "[]") ?: "[]"
-                val arr = org.json.JSONArray(hist)
-                val filtered = org.json.JSONArray()
-                for (i in 0 until arr.length()) {
-                    try {
-                        val entry = arr.getJSONObject(i)
-                        if (entry.optString("filePath", "") != filePath) {
-                            filtered.put(entry)
-                        }
-                    } catch (_: Exception) {
-                        // Пропускаем битые записи
-                    }
-                }
-                prefs.edit().putString("download_history", filtered.toString()).apply()
-            } catch (_: Exception) {}
+            viewModel.deleteFile(filePath)
+            js("onHistoryChanged()")
         }
 
         @JavascriptInterface
         fun checkUpdate() {
-            Thread {
+            viewModel.launchIO {
                 try {
                     val conn = java.net.URL("https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest")
                         .openConnection() as java.net.HttpURLConnection
@@ -360,18 +282,18 @@ class MainActivity : AppCompatActivity() {
                     val result = JSONObject().apply {
                         put("latest", latest)
                         put("downloadUrl", downloadUrl)
-                        put("current", "1.0.0")
+                        put("current", "2.0.0")
                     }
                     js("onUpdateResult('${escJs(result.toString())}')")
                 } catch (e: Exception) {
                     js("onUpdateResult('${escJs("""{"error":"${e.message?.replace("\"", "'") ?: "?"}"}""")}')")
                 }
-            }.start()
+            }
         }
 
         @JavascriptInterface
         fun downloadUpdate(url: String) {
-            Thread {
+            viewModel.launchIO {
                 try {
                     val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
                     conn.connectTimeout = 30000
@@ -404,7 +326,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     toast("Ошибка обновления: ${e.message}")
                 }
-            }.start()
+            }
         }
     }
 }
