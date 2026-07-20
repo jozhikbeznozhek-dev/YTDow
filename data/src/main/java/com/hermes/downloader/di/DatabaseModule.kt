@@ -20,7 +20,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): YTDowDatabase =
-        Room.databaseBuilder(ctx, YTDowDatabase::class.java, "ytdow.db").build()
+        Room.databaseBuilder(ctx, YTDowDatabase::class.java, "ytdow.db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides fun provideHistoryDao(db: YTDowDatabase): HistoryDao = db.historyDao()
     @Provides fun provideTaskDao(db: YTDowDatabase): TaskDao = db.taskDao()

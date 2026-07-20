@@ -28,6 +28,9 @@ class DownloadRepositoryImpl(
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun destroy() { scope.cancel() }
+
     private val active = ConcurrentHashMap<String, Job>()
     private val _currentTasks = MutableStateFlow<Map<String, DownloadTask>>(emptyMap())
     val currentTasks: Flow<Map<String, DownloadTask>> = _currentTasks.asStateFlow()

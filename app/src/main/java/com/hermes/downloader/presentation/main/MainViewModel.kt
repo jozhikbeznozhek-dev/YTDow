@@ -9,6 +9,9 @@ import java.util.UUID
 class MainViewModel {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    fun destroy() { scope.cancel() }
+
     private val downloadRepo = ServiceLocator.downloadRepo
     private val queueManager = ServiceLocator.queueManager
     private val settingsRepo = ServiceLocator.settingsRepo
