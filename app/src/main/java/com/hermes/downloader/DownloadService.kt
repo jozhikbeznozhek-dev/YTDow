@@ -262,7 +262,7 @@ class DownloadService : Service() {
     override fun onBind(i: Intent?): IBinder? = null
     override fun onDestroy() {
         pool.shutdown()
-        unregisterReceiver(cancelReceiver)
+        try { unregisterReceiver(cancelReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 

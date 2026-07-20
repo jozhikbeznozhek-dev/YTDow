@@ -13,6 +13,7 @@ import com.hermes.downloader.core.Logger
 object ServiceLocator {
     lateinit var app: Application
     lateinit var prefs: SharedPreferences
+    var appVersion: String = "2.1.0"
 
     val downloadRepo: DownloadRepository by lazy { DownloadRepositoryImpl(app, prefs) }
     val settingsRepo: SettingsRepository by lazy { SettingsRepositoryImpl(prefs) }

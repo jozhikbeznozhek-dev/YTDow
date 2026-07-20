@@ -8,7 +8,6 @@ import com.hermes.downloader.domain.queue.QueueManager
 import com.hermes.downloader.domain.queue.QueueTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.PriorityBlockingQueue
-import java.util.concurrent.atomic.AtomicInteger
 
 class QueueManagerImpl(
     private val log: com.hermes.downloader.core.Logger? = null
@@ -150,13 +149,9 @@ class QueueManagerImpl(
     }
 
     // ── Internal ──
-
-    private fun processQueue() {
-        // This is called whenever state changes.
-        // MainViewModel/DownloadRepository should call nextDownloadTask()
-        // in a loop until it returns null.
-        // We don't auto-start here to avoid tight coupling with Android context.
-    }
+    // Called after every state change. Currently a no-op — MainViewModel polls
+    // nextDownloadTask() externally to avoid tight coupling with Android context.
+    private fun processQueue() {}
 
     /** Get count of active downloads */
     fun activeCount(): Int = downloading.size

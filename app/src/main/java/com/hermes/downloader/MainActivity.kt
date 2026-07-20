@@ -139,6 +139,8 @@ class MainActivity : AppCompatActivity() {
     private fun escJs(s: String): String {
         return s.replace("\\", "\\\\")
             .replace("'", "\\'")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
             .replace("\n", "\\n")
             .replace("\r", "")
     }

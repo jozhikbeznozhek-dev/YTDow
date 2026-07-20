@@ -4,7 +4,9 @@ import com.hermes.downloader.domain.repository.UpdateInfo
 import com.hermes.downloader.domain.repository.UpdateRepository
 import org.json.JSONObject
 
-class UpdateRepositoryImpl : UpdateRepository {
+class UpdateRepositoryImpl(
+    private val currentVersion: String
+) : UpdateRepository {
     override suspend fun checkForUpdate(): UpdateInfo {
         return try {
             val conn = java.net.URL("https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest")
@@ -23,9 +25,9 @@ class UpdateRepositoryImpl : UpdateRepository {
                     break
                 }
             }
-            UpdateInfo(latest, downloadUrl, "2.0.0")
+            UpdateInfo(latest, downloadUrl, currentVersion)
         } catch (e: Exception) {
-            UpdateInfo("", "", "2.0.0")
+            UpdateInfo("", "", currentVersion)
         }
     }
 }
