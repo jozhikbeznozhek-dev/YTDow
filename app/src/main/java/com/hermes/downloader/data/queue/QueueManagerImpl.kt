@@ -10,9 +10,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.atomic.AtomicInteger
 
-class QueueManagerImpl : QueueManager {
+class QueueManagerImpl(
+    private val log: com.hermes.downloader.core.Logger? = null
+) : QueueManager {
 
-    private val log get() = ServiceLocator.logger
+    private val logger get() = log ?: run {
+        try { ServiceLocator.logger } catch (_: Exception) { null }
+    }
 
     // Priority queue: higher priority tasks first
     private val queue = PriorityBlockingQueue<QueueTask>(11) { a, b ->
@@ -31,7 +35,7 @@ class QueueManagerImpl : QueueManager {
         for (task in tasks) {
             this.tasks[task.id] = task
             queue.add(task)
-            log.d("YTDowQueue", "enqueued: ${task.id} url=${task.url}")
+            logger?.d("YTDowQueue", "enqueued: ${task.id} url=${task.url}")
         }
         processQueue()
     }
@@ -44,7 +48,7 @@ class QueueManagerImpl : QueueManager {
             }
             queue.remove(task)
             tasks[taskId] = task.copy(state = DownloadState.CANCELLED)
-            log.d("YTDowQueue", "cancelled: $taskId")
+            logger?.d("YTDowQueue", "cancelled: $taskId")
         }
         processQueue()
     }
@@ -54,7 +58,7 @@ class QueueManagerImpl : QueueManager {
             if (task.state == DownloadState.DOWNLOADING) {
                 downloading.remove(taskId)
                 tasks[taskId] = task.copy(state = DownloadState.PAUSED)
-                log.d("YTDowQueue", "paused: $taskId")
+                logger?.d("YTDowQueue", "paused: $taskId")
                 processQueue()
             }
         }
@@ -65,7 +69,7 @@ class QueueManagerImpl : QueueManager {
             if (task.state == DownloadState.PAUSED) {
                 tasks[taskId] = task.copy(state = DownloadState.QUEUED)
                 queue.add(tasks[taskId]!!)
-                log.d("YTDowQueue", "resumed: $taskId")
+                logger?.d("YTDowQueue", "resumed: $taskId")
                 processQueue()
             }
         }
@@ -80,7 +84,7 @@ class QueueManagerImpl : QueueManager {
                     errorMessage = ""
                 )
                 queue.add(tasks[taskId]!!)
-                log.d("YTDowQueue", "retry: $taskId attempt=${task.retryCount + 1}")
+                logger?.d("YTDowQueue", "retry: $taskId attempt=${task.retryCount + 1}")
                 processQueue()
             }
         }
@@ -96,7 +100,7 @@ class QueueManagerImpl : QueueManager {
             progress = 100,
             title = historyEntry.title
         )
-        log.d("YTDowQueue", "completed: $taskId path=$filePath")
+        logger?.d("YTDowQueue", "completed: $taskId path=$filePath")
         processQueue()
     }
 
@@ -107,7 +111,7 @@ class QueueManagerImpl : QueueManager {
                 state = DownloadState.FAILED,
                 errorMessage = error
             )
-            log.e("YTDowQueue", "failed: $taskId error=$error")
+            logger?.e("YTDowQueue", "failed: $taskId error=$error")
         }
         processQueue()
     }
@@ -133,7 +137,7 @@ class QueueManagerImpl : QueueManager {
         val task = queue.poll() ?: return null
         tasks[task.id] = task.copy(state = DownloadState.PREPARING)
         downloading[task.id] = true
-        return task
+        return tasks[task.id]
     }
 
     // ── Internal ──

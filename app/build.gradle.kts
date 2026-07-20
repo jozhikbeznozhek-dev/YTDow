@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    kotlin("kapt")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -13,42 +15,77 @@ android {
         targetSdk = 34
         versionCode = 3
         versionName = "2.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
+
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.5" }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
+    packaging { jniLibs { useLegacyPackaging = true } }
+    testOptions { unitTests.isReturnDefaultValues = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
+    // Compose BOM
+    val composeBom = platform("androidx.compose:compose-bom:2023.10.01")
+    implementation(composeBom)
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.activity:activity-compose:1.8.1")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Hilt
+    implementation("com.google.dagger:hilt-android:2.50")
+    kapt("com.google.dagger:hilt-android-compiler:2.50")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+
+    // Room
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+
+    // Lifecycle + ViewModel
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.5")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Timber
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
+
+    // YouTube DL
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("io.mockk:mockk:1.13.8")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }

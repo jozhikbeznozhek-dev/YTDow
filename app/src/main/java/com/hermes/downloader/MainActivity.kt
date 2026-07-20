@@ -24,8 +24,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import android.util.Log
-import kotlin.math.roundToLong
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
