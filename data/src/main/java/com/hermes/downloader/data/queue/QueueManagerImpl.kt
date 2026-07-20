@@ -55,6 +55,7 @@ class QueueManagerImpl(
 
     override fun pause(taskId: String) {
         tasks[taskId]?.let { task ->
+            if (!task.state.canTransitionTo(DownloadState.PAUSED)) return
             if (task.state == DownloadState.DOWNLOADING) {
                 downloading.remove(taskId)
                 tasks[taskId] = task.copy(state = DownloadState.PAUSED)
@@ -66,6 +67,7 @@ class QueueManagerImpl(
 
     override fun resume(taskId: String) {
         tasks[taskId]?.let { task ->
+            if (!task.state.canTransitionTo(DownloadState.QUEUED)) return
             if (task.state == DownloadState.PAUSED) {
                 tasks[taskId] = task.copy(state = DownloadState.QUEUED)
                 queue.add(tasks[taskId]!!)
@@ -77,6 +79,7 @@ class QueueManagerImpl(
 
     override fun retry(taskId: String) {
         tasks[taskId]?.let { task ->
+            if (!task.state.canTransitionTo(DownloadState.QUEUED)) return
             if (task.state == DownloadState.FAILED && task.retryCount < task.maxRetries) {
                 tasks[taskId] = task.copy(
                     state = DownloadState.QUEUED,
