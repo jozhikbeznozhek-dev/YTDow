@@ -24,6 +24,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import android.util.Log
+import kotlin.concurrent.thread
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -67,6 +68,19 @@ class MainActivity : AppCompatActivity() {
         val defaultSaveDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "YTDow").apply { mkdirs() }
         savePath = defaultSaveDir.absolutePath
         prefs.edit().putString("save_path", savePath).apply()
+
+        // Auto-update yt-dlp once per week
+        val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
+        if (System.currentTimeMillis() - lastUpdate > 7 * 24 * 3600 * 1000L) {
+            thread(name = "ytdlp-update") {
+                try {
+                    val ytdlp = com.yausername.youtubedl_android.YoutubeDL.getInstance()
+                    ytdlp.init(this@MainActivity)
+                    ytdlp.updateYoutubeDL(this@MainActivity, com.yausername.youtubedl_android.YoutubeDL.UpdateChannel._STABLE)
+                    prefs.edit().putLong("ytdlp_last_update", System.currentTimeMillis()).apply()
+                } catch (_: Exception) {}
+            }
+        }
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true

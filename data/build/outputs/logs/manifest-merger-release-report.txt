@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml:2:13-83
+INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml:2:13-83
+	package
+		INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml
+	xmlns:android
+		ADDED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml:2:23-81
+uses-sdk
+INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml reason: use-sdk injection requested
+INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml
+INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml
+	android:targetSdkVersion
+		INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml
+	android:minSdkVersion
+		INJECTED from /Users/mikhail/Desktop/android 2/data/build/intermediates/tmp/ProcessLibraryManifest/release/tempAndroidManifest13278296887019613495.xml
