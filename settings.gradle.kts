@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "YTDow"
-include(":app")
+include(":app", ":domain", ":core", ":data")

@@ -18,7 +18,7 @@ import androidx.core.content.FileProvider
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.hermes.downloader.presentation.main.MainViewModel
-import com.hermes.downloader.core.ServiceLocator
+import com.hermes.downloader.data.ServiceLocator
 import com.hermes.downloader.data.repository.DownloadRepositoryImpl
 import org.json.JSONArray
 import org.json.JSONObject

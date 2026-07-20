@@ -1,6 +1,6 @@
 package com.hermes.downloader.presentation.main
 
-import com.hermes.downloader.core.ServiceLocator
+import com.hermes.downloader.data.ServiceLocator
 import com.hermes.downloader.domain.model.*
 import com.hermes.downloader.domain.queue.QueueTask
 import kotlinx.coroutines.*

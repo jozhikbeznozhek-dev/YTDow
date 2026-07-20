@@ -74,6 +74,9 @@ dependencies {
     implementation("com.jakewharton.timber:timber:5.0.1")
 
     // Core
+    implementation(project(":domain"))
+    implementation(project(":core"))
+    implementation(project(":data"))
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")

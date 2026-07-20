@@ -1,7 +1,7 @@
 package com.hermes.downloader
 
 import android.app.Application
-import com.hermes.downloader.core.ServiceLocator
+import com.hermes.downloader.data.ServiceLocator
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
