@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import com.hermes.downloader.core.Logger
 import com.hermes.downloader.domain.model.*
 import com.hermes.downloader.domain.repository.DownloadRepository
-import com.yausername.ffmpeg.FFmpeg
+
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.*
@@ -18,7 +18,7 @@ import java.io.File
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.roundToInt
+
 
 @Singleton
 class DownloadRepositoryImpl @Inject constructor(
@@ -27,15 +27,7 @@ class DownloadRepositoryImpl @Inject constructor(
 ) : DownloadRepository {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("ytdow", Context.MODE_PRIVATE)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val active = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private val _currentTasks = MutableStateFlow<Map<String, DownloadTask>>(emptyMap())
-    val currentTasks: Flow<Map<String, DownloadTask>> = _currentTasks.asStateFlow()
-    private val _taskEvents = MutableStateFlow<TaskEvent?>(null)
-    val taskEvents: Flow<TaskEvent?> = _taskEvents.asStateFlow()
     private val _history = MutableStateFlow(loadHistory())
-
-    fun destroy() { scope.cancel() }
 
     override fun getHistory(): Flow<List<DownloadHistoryEntry>> = _history.asStateFlow()
 
@@ -88,52 +80,6 @@ class DownloadRepositoryImpl @Inject constructor(
             VideoMetadata(title = info.title ?: "", fileSize = info.fileSize, fileSizeApproximate = info.fileSizeApproximate)
         }
 
-    override suspend fun executeDownload(task: DownloadTask): String = withContext(Dispatchers.IO) {
-        val savePath = prefs.getString("save_path", null) ?: defaultPath()
-        File(savePath).mkdirs()
-        YoutubeDL.getInstance().init(context)
-        FFmpeg.getInstance().init(context)
-        val req = YoutubeDLRequest(task.url).apply {
-            addOption("-o", "$savePath/%(title)s.%(ext)s")
-            addOption("--no-playlist"); addOption("--no-colors"); addOption("--no-mtime")
-            addOption("--no-keep-video"); addOption("--print", "after_move:filepath"); addOption("--print", "%(title)s")
-            when (task.format) {
-                DownloadFormat.MP3 -> { addOption("-f", "bestaudio/best"); addOption("-x"); addOption("--audio-format", "mp3"); addOption("--audio-quality", "192K") }
-                DownloadFormat.MP4 -> {
-                    addOption("--merge-output-format", "mp4")
-                    val lf = if (task.audioLang.isNotEmpty()) "[language=${task.audioLang}]" else ""
-                    if (task.quality == "best") addOption("-f", "bestvideo+bestaudio$lf/best")
-                    else addOption("-f", "bestvideo[height<=${task.quality.replace("p", "")}]+bestaudio$lf/best")
-                }
-            }
-        }
-        var filePath = ""; var title = ""
-        YoutubeDL.getInstance().execute(req, task.id) { pct, _, line ->
-            val pp = Regex("""(\d+(?:\.\d+)?)%""").find(line)?.groupValues?.get(1)?.toDoubleOrNull()
-            val p = when { pct > 0.0f -> pct.roundToInt(); pp != null -> pp.roundToInt(); else -> -1 }.coerceIn(-1, 100)
-            val spd = Regex("""at\s+(\S+)\s""").find(line)?.groupValues?.get(1).orEmpty()
-            val current = _currentTasks.value.toMutableMap()
-            current[task.id] = task.copy(progress = p, speed = spd)
-            _currentTasks.value = current
-            val t = line.trim()
-            if (t.startsWith("/")) filePath = t
-            else if (t.isNotEmpty() && title.isEmpty() && !t.startsWith("[") && !t.contains("%")) title = t
-        }
-        val finalPath = if (filePath.startsWith("/storage/emulated/0/Download")) filePath else copyToPublic(filePath) ?: filePath
-        addToHistory(DownloadHistoryEntry(url = task.url, title = title, format = task.format.name.lowercase(), quality = task.quality, filePath = finalPath))
-        _taskEvents.value = TaskEvent.Completed(task.id, finalPath)
-        val current = _currentTasks.value.toMutableMap()
-        current[task.id] = task.copy(status = DownloadStatus.COMPLETED, progress = 100, filePath = finalPath)
-        _currentTasks.value = current
-        finalPath
-    }
-
-    override fun cancelDownload(taskId: String) {
-        YoutubeDL.getInstance().destroyProcessById(taskId)
-        val current = _currentTasks.value.toMutableMap()
-        current[taskId]?.let { current[taskId] = it.copy(status = DownloadStatus.CANCELLED) }
-        _currentTasks.value = current
-    }
 
     override suspend fun deleteFile(filePath: String): Boolean = withContext(Dispatchers.IO) {
         val uri = findDownloadUri(filePath)
@@ -157,33 +103,10 @@ class DownloadRepositoryImpl @Inject constructor(
         return null
     }
 
-    private fun copyToPublic(srcPath: String): String? {
-        if (srcPath.isEmpty() || !File(srcPath).exists()) return null
-        return try {
-            val sf = File(srcPath); val fn = sf.name
-            val mime = when { fn.endsWith(".mp3") -> "audio/mpeg"; fn.endsWith(".mp4") -> "video/mp4"; else -> "*/*" }
-            val cv = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fn)
-                put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
-                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/YTDow")
-            }
-            val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: return null
-            context.contentResolver.openOutputStream(uri)?.use { sf.inputStream().use { inp -> inp.copyTo(it) } } ?: return null
-            sf.delete()
-            "/storage/emulated/0/Download/YTDow/$fn"
-        } catch (e: Exception) { logger.e("YTDow", "copyToPublic", e); null }
-    }
 
     private fun loadHistory(): List<DownloadHistoryEntry> = try {
         val arr = JSONArray(prefs.getString("download_history", "[]") ?: "[]")
         (0 until arr.length()).map { i -> val e = arr.getJSONObject(i); DownloadHistoryEntry(url = e.optString("url"), title = e.optString("title"), format = e.optString("format", "mp4"), quality = e.optString("quality", "best"), filePath = e.optString("filePath"), time = e.optLong("time", System.currentTimeMillis())) }.reversed()
     } catch (e: Exception) { logger.e("YTDow", "loadHistory", e); emptyList() }
 
-    private fun defaultPath() = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "YTDow").apply { mkdirs() }.absolutePath
-}
-
-sealed class TaskEvent {
-    data class Completed(val taskId: String, val filePath: String) : TaskEvent()
-    data class Error(val taskId: String, val message: String) : TaskEvent()
-    data class Progress(val taskId: String, val percent: Int, val speed: String, val eta: String) : TaskEvent()
 }

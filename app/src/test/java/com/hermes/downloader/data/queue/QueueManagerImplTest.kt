@@ -33,6 +33,19 @@ class QueueManagerImplTest {
     }
 
     @Test
+    fun `enqueue ignores a duplicate task id`() {
+        qm.enqueue(
+            listOf(
+                QueueTask(id = "task-id", url = "https://example.com/first"),
+                QueueTask(id = "task-id", url = "https://example.com/duplicate")
+            )
+        )
+
+        assertEquals(1, qm.queuedCount())
+        assertEquals("https://example.com/first", qm.nextDownloadTask()?.url)
+    }
+
+    @Test
     fun `nextDownloadTask returns task when slot available`() {
         val task = QueueTask(id = "t1", url = "https://example.com/v1")
         qm.enqueue(listOf(task))

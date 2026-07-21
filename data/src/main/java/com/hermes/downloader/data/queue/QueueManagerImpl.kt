@@ -21,9 +21,18 @@ class QueueManagerImpl @Inject constructor(
     private val downloading = ConcurrentHashMap<String, Boolean>()
     override var maxConcurrent = 3
 
-    override fun enqueue(newTasks: List<QueueTask>) {
-        for (task in newTasks) { this.tasks[task.id] = task; queue.add(task) }
-        logger.d("YTDowQueue", "enqueued: ${newTasks.size}")
+    override fun enqueue(tasks: List<QueueTask>) {
+        var enqueuedCount = 0
+        for (task in tasks) {
+            if (this.tasks.containsKey(task.id)) {
+                logger.w("YTDowQueue", "ignored duplicate task id: ${task.id}")
+                continue
+            }
+            this.tasks[task.id] = task
+            queue.add(task)
+            enqueuedCount++
+        }
+        logger.d("YTDowQueue", "enqueued: $enqueuedCount")
         processQueue()
     }
 

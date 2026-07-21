@@ -21,14 +21,6 @@ class GetVideoMetadataUseCase(private val repo: DownloadRepository) {
         repo.getVideoMetadata(url, format, quality, audioLang)
 }
 
-class StartDownloadUseCase(private val repo: DownloadRepository) {
-    suspend operator fun invoke(task: DownloadTask): String = repo.executeDownload(task)
-}
-
-class CancelDownloadUseCase(private val repo: DownloadRepository) {
-    operator fun invoke(taskId: String) = repo.cancelDownload(taskId)
-}
-
 class DeleteFileUseCase(private val repo: DownloadRepository) {
     suspend operator fun invoke(filePath: String): Boolean = repo.deleteFile(filePath)
 }

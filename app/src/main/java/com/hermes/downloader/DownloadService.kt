@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.os.Build
 import android.os.IBinder
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
@@ -16,6 +17,7 @@ import com.yausername.ffmpeg.FFmpeg
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.hermes.downloader.domain.storage.DownloadStagingDirectory
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -59,8 +61,6 @@ class DownloadService : Service() {
         val qual = intent.getStringExtra(EXTRA_QUALITY) ?: "best"
         val lang = intent.getStringExtra(EXTRA_AUDIO_LANG) ?: ""
         val tid = intent.getStringExtra(EXTRA_TASK_ID) ?: "unknown"
-        val save = intent.getStringExtra(EXTRA_SAVE_PATH) ?: return START_NOT_STICKY
-
         active[tid] = true
 
         // Синхронизированный первый запуск foreground
@@ -76,13 +76,14 @@ class DownloadService : Service() {
 
         pool.execute {
             try {
-            // Единственный вызов mkdirs
-                File(save).mkdirs()
+                val stagingDirectory = DownloadStagingDirectory.from(filesDir).apply {
+                    check(mkdirs() || isDirectory) { "Unable to create download staging directory" }
+                }
                 YoutubeDL.getInstance().init(this@DownloadService)
                 FFmpeg.getInstance().init(this@DownloadService)
 
                 val req = YoutubeDLRequest(url).apply {
-                    addOption("-o", "$save/%(title)s.%(ext)s")
+                    addOption("-o", "$stagingDirectory/%(title)s.%(ext)s")
                     addOption("--no-playlist")
                     addOption("--no-colors")
                     addOption("--no-mtime")
@@ -111,8 +112,8 @@ class DownloadService : Service() {
 
                 var filePath = ""
                 var title = ""
-                YoutubeDL.getInstance().execute(req, tid) { pct, eta, line ->
-                    if (!active.containsKey(tid)) return@execute
+                YoutubeDL.getInstance().execute(req, tid) progressCallback@{ pct, eta, line ->
+                    if (!active.containsKey(tid)) return@progressCallback
                     Log.d("YTDowLine", "pct=$pct eta=$eta line=$line")
                     // Библиотека не парсит прогресс (pct всегда -1.0), stdout содержит только --print.
                     // Шлём -1 как индикатор "indeterminate" — UI покажет анимацию вместо 0%.
@@ -135,11 +136,8 @@ class DownloadService : Service() {
                 }
 
                 if (active.containsKey(tid)) {
-                    val finalPath = if (isPublicDownloadPath(filePath)) {
-                        filePath
-                    } else {
-                        copyToPublicDownloads(filePath) ?: filePath
-                    }
+                    val finalPath = copyToPublicDownloads(filePath)
+                        ?: throw IllegalStateException("Не удалось опубликовать загрузку в Downloads")
                     saveToHistory(url, title, fmt, qual, finalPath)
                     sendComplete(tid, finalPath)
                 }
@@ -185,14 +183,10 @@ class DownloadService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun isPublicDownloadPath(path: String): Boolean {
-        val normalized = path.trimEnd('/')
-        return normalized == "/storage/emulated/0/Download" || normalized.startsWith("/storage/emulated/0/Download/")
-    }
-
     private fun copyToPublicDownloads(srcPath: String): String? {
         if (srcPath.isEmpty() || !File(srcPath).exists()) return null
-        try {
+        var targetUri: Uri? = null
+        return try {
             val sourceFile = File(srcPath)
             val fileName = sourceFile.name
             val mime = when {
@@ -204,19 +198,28 @@ class DownloadService : Service() {
                 put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                 put(MediaStore.Downloads.MIME_TYPE, mime)
                 put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTDow")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
             }
-            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            val mediaUri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: return null
-            contentResolver.openOutputStream(uri)?.use { out ->
+            targetUri = mediaUri
+            contentResolver.openOutputStream(mediaUri)?.use { out ->
                 sourceFile.inputStream().use { inp -> inp.copyTo(out) }
             } ?: return null
 
-            // Удаляем исходник из приватной папки только после успешной записи публичной копии.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(mediaUri, values, null, null)
+            }
             sourceFile.delete()
-
             return "/storage/emulated/0/Download/YTDow/$fileName"
-        } catch (_: Exception) {
-            return null
+        } catch (exception: Exception) {
+            targetUri?.let { contentResolver.delete(it, null, null) }
+            Log.e("YTDow", "Unable to publish download", exception)
+            null
         }
     }
 
@@ -275,7 +278,7 @@ class DownloadService : Service() {
         const val EXTRA_FORMAT = "format"
         const val EXTRA_QUALITY = "quality"
         const val EXTRA_TASK_ID = "taskId"
-        const val EXTRA_SAVE_PATH = "savePath"
+
         const val EXTRA_PERCENT = "percent"
         const val EXTRA_SPEED = "speed"
         const val EXTRA_ETA = "eta"

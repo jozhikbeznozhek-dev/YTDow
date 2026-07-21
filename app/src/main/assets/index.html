@@ -222,7 +222,7 @@ h2{font-size:15px;color:var(--t2);margin:16px 0 8px;font-weight:500;cursor:point
 
 <!-- ═══ ALL JS — PRESERVED ═══ -->
 <script>
-let tasks={},downloadDir='',taskCounter=0,history=[],downloadHistory=[];
+let tasks={},downloadDir='',history=[],downloadHistory=[];
 
 document.addEventListener('DOMContentLoaded',()=>{
   downloadDir=Android.getDownloadDir();updatePathLabel();
@@ -288,9 +288,8 @@ function startDownload(){
   const qual=document.getElementById('qualitySelect').value;
   const lang=document.getElementById('langSelect').value;
   urls.forEach(url=>{
-    const tid='task_'+(++taskCounter);
-    tasks[tid]={id:tid,url,fmt,qual,lang,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
-    Android.startDownload(url,fmt,qual,tid,downloadDir,lang);
+    const nativeTaskId=Android.startDownload(url,fmt,qual,lang);
+    tasks[nativeTaskId]={id:nativeTaskId,url,fmt,qual,lang,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
   });
   document.getElementById('urlInput').value='';
   renderTasks();
@@ -323,7 +322,7 @@ function onSizeResult(payload){
 }
 function onSizeError(message){var st=document.getElementById('sizeText');if(st)st.textContent='—'}
 function cancelDownload(tid){Android.cancelDownload(tid);tasks[tid].status='cancelled';renderTasks()}
-function changePath(){const p=prompt('Путь:',downloadDir||Android.getDownloadDir());if(p&&p.trim()){downloadDir=p.trim();updatePathLabel();toast('Папка: '+downloadDir)}}
+function changePath(){toast('Загрузки публикуются в Downloads/YTDow')}
 
 function onProgress(taskId,pct,spd,eta){
   if(!tasks[taskId])tasks[taskId]={id:taskId,status:'downloading',percent:pct,speed:spd||'',eta:eta||'',title:'',url:'',fmt:'',qual:'',filePath:''};
@@ -427,7 +426,7 @@ function openHistoryFolder(i){const e=historyEntry(i);if(e&&e.filePath)Android.o
 function deleteHistoryFile(i){const e=historyEntry(i);if(!e||!e.filePath)return;if(confirm('Удалить файл?')){Android.deleteFile(e.filePath);toast('Файл удалён');deleteFromTasks(e.filePath);refreshHistory();renderTasks();renderLibrary()}}
 function deleteFromTasks(filePath){Object.keys(tasks).forEach(id=>{if(tasks[id]&&tasks[id].filePath===filePath)delete tasks[id]})}
 function folderFromPath(filePath){const idx=filePath.lastIndexOf('/');return idx>0?filePath.slice(0,idx):downloadDir}
-function retryDownload(tid){const t=tasks[tid];if(!t)return;const nid='task_'+(++taskCounter);tasks[nid]={...t,id:nid,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks();Android.startDownload(t.url,t.fmt,t.qual,nid,downloadDir,t.lang||'')}
+function retryDownload(tid){const t=tasks[tid];if(!t)return;const nativeTaskId=Android.startDownload(t.url,t.fmt,t.qual,t.lang||'');tasks[nativeTaskId]={...t,id:nativeTaskId,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks()}
 function esc(s){const d=document.createElement('div');d.textContent=(s||'');return d.innerHTML}
 function shortenPath(p){const parts=p.split('/');return parts.length>3?'.../'+parts.slice(-2).join('/'):p}
 function toggleSection(id){const el=document.getElementById(id),arrow=document.getElementById('libArrow');if(el.style.display==='none'){el.style.display='block';arrow.textContent='▼'}else{el.style.display='none';arrow.textContent='▶'}}

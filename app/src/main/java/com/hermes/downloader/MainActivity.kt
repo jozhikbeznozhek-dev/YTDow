@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.hermes.downloader.domain.queue.TaskIdFactory
 import com.hermes.downloader.presentation.main.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.activity.viewModels
@@ -31,7 +32,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var prefs: SharedPreferences
     private var isReceiverRegistered = false
-    private var savePath: String = ""
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val viewModel: MainViewModel by viewModels()
 
@@ -62,9 +63,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
-
-        val defaultSaveDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "YTDow").apply { mkdirs() }
-        savePath = prefs.getString("save_path", null)?.takeIf { File(it).exists() } ?: defaultSaveDir.absolutePath
 
         // Auto-update yt-dlp once per week
         val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
@@ -157,11 +155,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun getDownloadDir(): String = viewModel.getSavePath()
 
         @JavascriptInterface
-        fun startDownload(url: String, format: String, quality: String, taskId: String, customPath: String, audioLang: String) {
-            if (customPath.isNotEmpty() && customPath != savePath) {
-                savePath = customPath
-                prefs.edit().putString("save_path", customPath).apply()
-            }
+        fun startDownload(
+            url: String,
+            format: String,
+            quality: String,
+            audioLang: String
+        ): String {
+            val nativeTaskId = TaskIdFactory.newId()
             // История ввода
             val arr = try {
                 org.json.JSONArray(prefs.getString("history", "[]") ?: "[]")
@@ -181,8 +181,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(DownloadService.EXTRA_URL, url)
                 putExtra(DownloadService.EXTRA_FORMAT, format)
                 putExtra(DownloadService.EXTRA_QUALITY, quality)
-                putExtra(DownloadService.EXTRA_TASK_ID, taskId)
-                putExtra(DownloadService.EXTRA_SAVE_PATH, savePath)
+                putExtra(DownloadService.EXTRA_TASK_ID, nativeTaskId)
                 putExtra(DownloadService.EXTRA_AUDIO_LANG, audioLang)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -190,6 +189,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 startService(intent)
             }
+            return nativeTaskId
         }
 
         @JavascriptInterface
@@ -356,4 +356,5 @@ class MainActivity : AppCompatActivity() {
         }
         return null
     }
+
 }
