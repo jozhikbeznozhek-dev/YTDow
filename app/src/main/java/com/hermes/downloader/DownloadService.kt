@@ -84,6 +84,7 @@ class DownloadService : Service() {
                 }
                 YoutubeDL.getInstance().init(this@DownloadService)
                 FFmpeg.getInstance().init(this@DownloadService)
+                YtDlpUpdateCoordinator.updateIfDue(this@DownloadService)
 
                 val req = YoutubeDLRequest(url).apply {
                     addOption("-o", "$stagingDirectory/%(title)s.%(ext)s")
@@ -91,6 +92,9 @@ class DownloadService : Service() {
                     addOption("--no-colors")
                     addOption("--no-mtime")
                     addOption("--no-keep-video")
+                    // Some Android networks advertise IPv6 without a working route.
+                    addOption("--force-ipv4")
+                    addOption("--socket-timeout", 20)
                     addOption("--print", "after_move:filepath")
                     addOption("--print", "%(title)s")
 
@@ -149,7 +153,8 @@ class DownloadService : Service() {
                 }
             } catch (e: Exception) {
                 if (active.containsKey(tid)) {
-                    val message = e.message ?: "Ошибка"
+                    Log.e("YTDow", "Download failed for task $tid", e)
+                    val message = DownloadFailureMessage.from(e.message)
                     AttemptHistoryStore.fail(this@DownloadService, tid, url, title, fmt, qual, message)
                     sendError(tid, message)
                 }

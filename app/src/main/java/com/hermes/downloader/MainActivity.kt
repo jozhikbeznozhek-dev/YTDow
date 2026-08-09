@@ -17,8 +17,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import com.yausername.youtubedl_android.YoutubeDL
-import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.hermes.downloader.domain.queue.TaskIdFactory
 import com.hermes.downloader.presentation.main.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,7 +26,6 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
-import android.util.Log
 import kotlin.concurrent.thread
 
 @AndroidEntryPoint
@@ -129,19 +126,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleYtDlpUpdate() {
-        val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
-        if (System.currentTimeMillis() - lastUpdate <= YTDLP_UPDATE_INTERVAL_MS) return
         mainHandler.postDelayed({
             if (isFinishing || isDestroyed) return@postDelayed
             thread(name = "ytdlp-update") {
-                try {
-                    val ytdlp = YoutubeDL.getInstance()
-                    ytdlp.init(this@MainActivity)
-                    ytdlp.updateYoutubeDL(this@MainActivity, YoutubeDL.UpdateChannel._STABLE)
-                    prefs.edit().putLong("ytdlp_last_update", System.currentTimeMillis()).apply()
-                } catch (error: Throwable) {
-                    Log.w("YTDow", "yt-dlp auto-update skipped", error)
-                }
+                YtDlpUpdateCoordinator.updateIfDue(this@MainActivity)
             }
         }, YTDLP_UPDATE_DELAY_MS)
     }
@@ -495,7 +483,6 @@ class MainActivity : AppCompatActivity() {
             "https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest"
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val MAX_UPDATE_BYTES = 300L * 1024L * 1024L
-        private const val YTDLP_UPDATE_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
         private const val YTDLP_UPDATE_DELAY_MS = 3000L
     }
 

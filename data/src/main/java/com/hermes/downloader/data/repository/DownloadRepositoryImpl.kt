@@ -2,6 +2,7 @@ package com.hermes.downloader.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import com.hermes.downloader.core.Logger
 import com.hermes.downloader.domain.model.*
 import com.hermes.downloader.domain.repository.DownloadRepository
@@ -90,6 +91,7 @@ class DownloadRepositoryImpl @Inject constructor(
     }
 
     fun findDownloadUri(filePath: String): android.net.Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val fileName = File(filePath).name; if (fileName.isBlank()) return null
         context.contentResolver.query(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
             arrayOf(android.provider.MediaStore.Downloads._ID, android.provider.MediaStore.Downloads.DISPLAY_NAME, android.provider.MediaStore.Downloads.RELATIVE_PATH),
