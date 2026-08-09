@@ -5,10 +5,12 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.*
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
 import android.provider.MediaStore
+import android.provider.Settings
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -23,6 +25,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import androidx.activity.viewModels
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
 import android.util.Log
 import kotlin.concurrent.thread
 
@@ -32,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var prefs: SharedPreferences
     private var isReceiverRegistered = false
+    private var pendingUpdateApk: File? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val viewModel: MainViewModel by viewModels()
@@ -84,16 +90,27 @@ class MainActivity : AppCompatActivity() {
             settings.mediaPlaybackRequiresUserGesture = false
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
-            setBackgroundColor(0xFF1E1E1E.toInt())
+            setBackgroundColor(0xFF000000.toInt())
             addJavascriptInterface(WebAppInterface(), "Android")
         }
         setContentView(webView)
         createChannel()
         requestNotifyPerm()
+        requestLegacyStoragePerm()
         webView.loadUrl("file:///android_asset/index.html")
     }
 
     override fun onStart() { super.onStart(); register() }
+
+    override fun onResume() {
+        super.onResume()
+        val apk = pendingUpdateApk ?: return
+        if (canInstallPackages()) {
+            pendingUpdateApk = null
+            launchPackageInstaller(apk)
+        }
+    }
+
     override fun onStop() {
         if (isReceiverRegistered) { unregisterReceiver(receiver); isReceiverRegistered = false }
         super.onStop()
@@ -111,6 +128,15 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+    }
+
+    private fun requestLegacyStoragePerm() {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1002)
         }
     }
 
@@ -152,7 +178,9 @@ class MainActivity : AppCompatActivity() {
     inner class WebAppInterface {
         @JavascriptInterface fun getHistory(): String = viewModel.getUrlHistory()
         @JavascriptInterface fun getDownloadHistory(): String = viewModel.getHistoryJson()
+        @JavascriptInterface fun getAttemptHistory(): String = AttemptHistoryStore.json(this@MainActivity)
         @JavascriptInterface fun getDownloadDir(): String = viewModel.getSavePath()
+        @JavascriptInterface fun getAppVersion(): String = BuildConfig.VERSION_NAME
 
         @JavascriptInterface
         fun startDownload(
@@ -184,6 +212,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(DownloadService.EXTRA_TASK_ID, nativeTaskId)
                 putExtra(DownloadService.EXTRA_AUDIO_LANG, audioLang)
             }
+            AttemptHistoryStore.start(this@MainActivity, nativeTaskId, url, format, quality)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
@@ -272,12 +301,15 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun checkUpdate() {
             viewModel.launchIO {
+                var conn: HttpURLConnection? = null
                 try {
-                    val conn = java.net.URL("https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest")
-                        .openConnection() as java.net.HttpURLConnection
+                    conn = URL(LATEST_RELEASE_URL).openConnection() as HttpURLConnection
                     conn.connectTimeout = 5000
                     conn.readTimeout = 5000
-                    conn.setRequestProperty("Accept", "application/json")
+                    conn.setRequestProperty("Accept", "application/vnd.github+json")
+                    conn.setRequestProperty("User-Agent", "YTDow/${BuildConfig.VERSION_NAME}")
+                    val statusCode = conn.responseCode
+                    check(statusCode in 200..299) { "GitHub вернул HTTP $statusCode" }
                     val body = conn.inputStream.bufferedReader().readText()
                     val json = JSONObject(body)
                     val latest = json.optString("tag_name", "").removePrefix("v")
@@ -295,11 +327,15 @@ class MainActivity : AppCompatActivity() {
                     val result = JSONObject().apply {
                         put("latest", latest)
                         put("downloadUrl", downloadUrl)
-                        put("current", "2.0.0")
+                        put("current", BuildConfig.VERSION_NAME)
+                        put("hasUpdate", VersionComparator.isNewer(latest, BuildConfig.VERSION_NAME))
                     }
                     js("onUpdateResult('${escJs(result.toString())}')")
                 } catch (e: Exception) {
-                    js("onUpdateResult('${escJs("""{"error":"${e.message?.replace("\"", "'") ?: "?"}"}""")}')")
+                    val result = JSONObject().put("error", e.message ?: "Не удалось проверить обновление")
+                    js("onUpdateResult('${escJs(result.toString())}')")
+                } finally {
+                    conn?.disconnect()
                 }
             }
         }
@@ -307,20 +343,30 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun downloadUpdate(url: String) {
             viewModel.launchIO {
+                var conn: HttpURLConnection? = null
                 try {
-                    val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                    val updateUrl = URL(url)
+                    check(isTrustedUpdateUrl(updateUrl)) { "Недопустимый адрес обновления" }
+                    conn = updateUrl.openConnection() as HttpURLConnection
                     conn.connectTimeout = 30000
                     conn.readTimeout = 60000
-                    val total = conn.contentLength
+                    conn.instanceFollowRedirects = true
+                    conn.setRequestProperty("User-Agent", "YTDow/${BuildConfig.VERSION_NAME}")
+                    val statusCode = conn.responseCode
+                    check(statusCode in 200..299) { "GitHub вернул HTTP $statusCode" }
+                    val total = conn.contentLengthLong
+                    check(total <= MAX_UPDATE_BYTES) { "APK слишком большой" }
                     val apkFile = File(cacheDir, "update.apk")
+                    val partialFile = File(cacheDir, "update.apk.part")
                     conn.inputStream.use { input ->
-                        apkFile.outputStream().use { output ->
+                        partialFile.outputStream().use { output ->
                             val buffer = ByteArray(8192)
                             var bytesRead: Int
                             var downloaded = 0L
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 output.write(buffer, 0, bytesRead)
                                 downloaded += bytesRead
+                                check(downloaded <= MAX_UPDATE_BYTES) { "APK слишком большой" }
                                 if (total > 0) {
                                     val pct = (downloaded * 100 / total).toInt()
                                     js("onUpdateProgress($pct)")
@@ -328,22 +374,103 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    val uri = FileProvider.getUriForFile(
-                        this@MainActivity, "${packageName}.fileprovider", apkFile
-                    )
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, "application/vnd.android.package-archive")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    }
-                    startActivity(intent)
+                    check(partialFile.length() > 0) { "GitHub вернул пустой файл" }
+                    if (apkFile.exists()) check(apkFile.delete()) { "Не удалось заменить старое обновление" }
+                    check(partialFile.renameTo(apkFile)) { "Не удалось подготовить APK" }
+                    validateUpdateApk(apkFile)
+                    js("onUpdateStatus('APK загружен и проверен')")
+                    mainHandler.post { preparePackageInstall(apkFile) }
                 } catch (e: Exception) {
-                    toast("Ошибка обновления: ${e.message}")
+                    val message = e.message ?: "Неизвестная ошибка"
+                    js("onUpdateStatus('${escJs("Ошибка обновления: $message")}',true)")
+                    toast("Ошибка обновления: $message")
+                } finally {
+                    conn?.disconnect()
                 }
             }
         }
     }
 
+    private fun isTrustedUpdateUrl(url: URL): Boolean =
+        url.protocol.equals("https", ignoreCase = true) &&
+            url.host.equals("github.com", ignoreCase = true) &&
+            url.path.startsWith("/jozhikbeznozhek-dev/YTDow/releases/download/")
+
+    private fun canInstallPackages(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+
+    private fun preparePackageInstall(apkFile: File) {
+        if (!canInstallPackages()) {
+            pendingUpdateApk = apkFile
+            js("onUpdateStatus('Разрешите установку обновлений для YTDow, затем вернитесь в приложение')")
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = Uri.parse("package:$packageName")
+                })
+            } catch (e: Exception) {
+                pendingUpdateApk = null
+                js("onUpdateStatus('${escJs("Не удалось открыть разрешение: ${e.message ?: "ошибка"}")}',true)")
+            }
+            return
+        }
+        launchPackageInstaller(apkFile)
+    }
+
+    private fun launchPackageInstaller(apkFile: File) {
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
+            js("onUpdateStatus('Открываем установщик Android…')")
+            startActivity(Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, APK_MIME_TYPE)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            })
+        } catch (e: Exception) {
+            js("onUpdateStatus('${escJs("Не удалось открыть установщик: ${e.message ?: "ошибка"}")}',true)")
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun validateUpdateApk(apkFile: File) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val updateInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
+            ?: error("Файл не является Android APK")
+        check(updateInfo.packageName == packageName) { "APK предназначен для другого приложения" }
+
+        val currentInfo = packageManager.getPackageInfo(packageName, flags)
+        val updateCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) updateInfo.longVersionCode
+            else updateInfo.versionCode.toLong()
+        val currentCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) currentInfo.longVersionCode
+            else currentInfo.versionCode.toLong()
+        check(updateCode > currentCode) { "Версия APK не новее установленной" }
+
+        val currentSigners = signerDigests(currentInfo)
+        val updateSigners = signerDigests(updateInfo)
+        check(currentSigners.isNotEmpty() && currentSigners.intersect(updateSigners).isNotEmpty()) {
+            "Подпись APK не совпадает с установленным приложением"
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun signerDigests(info: PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = info.signingInfo ?: return emptySet()
+            if (signingInfo.hasMultipleSigners()) signingInfo.apkContentsSigners
+            else signingInfo.signingCertificateHistory
+        } else {
+            info.signatures ?: emptyArray()
+        }
+        return signatures.map { signature ->
+            MessageDigest.getInstance("SHA-256").digest(signature.toByteArray())
+                .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+        }.toSet()
+    }
+
     private fun findDownloadUri(filePath: String): Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val fileName = File(filePath).name; if (fileName.isBlank()) return null
         contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.RELATIVE_PATH),
@@ -355,6 +482,13 @@ class MainActivity : AppCompatActivity() {
                     return Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(idCol).toString())
         }
         return null
+    }
+
+    companion object {
+        private const val LATEST_RELEASE_URL =
+            "https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest"
+        private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+        private const val MAX_UPDATE_BYTES = 300L * 1024L * 1024L
     }
 
 }

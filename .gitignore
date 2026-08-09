@@ -21,3 +21,4 @@ desktop/venv/
 desktop/build/
 desktop/dist/
 desktop/*.spec
+data/verification/

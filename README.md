@@ -7,7 +7,7 @@
 
 | Слой | Технологии |
 |---|---|
-| **Android UI** | WebView + Material Design (Compose-ready) |
+| **Android UI** | WebView + OLED-интерфейс |
 | **Android Core** | Kotlin, Coroutines, Flow, Hilt DI |
 | **Хранение** | Room Database (3 DAO, 3 Entity) |
 | **Загрузки** | youtubedl-android + FFmpeg |
@@ -36,10 +36,11 @@
 - 📊 Расчёт размера до загрузки через `getInfo()`
 - 📦 Пакетная загрузка — ссылки через запятую
 - 🔄 Автообновление yt-dlp раз в 7 дней
-- 📋 История загрузок с открытием/удалением
+- 📋 Отдельные библиотека файлов и история всех попыток загрузки
+- 🖤 OLED-интерфейс с покадровыми анимациями состояний
 - 🌐 Выбор аудиодорожки (язык)
 - 📁 Настраиваемая папка сохранения
-- 🔔 Проверка обновлений через GitHub Releases API
+- 🔔 Проверка, скачивание и установка обновлений через GitHub Releases
 
 ## Быстрый старт
 
@@ -92,7 +93,7 @@ YTDow/
 │       └── plugin/          # Plugin System
 ├── core/src/main/           # Утилиты (чистый Kotlin)
 ├── desktop/                 # macOS версия (Python)
-└── app/src/test/            # Unit-тесты (18 тестов)
+└── app/src/test/            # Unit-тесты (23 теста)
 ```
 
 ## Лицензия

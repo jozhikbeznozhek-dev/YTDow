@@ -1,0 +1,678 @@
+(() => {
+  'use strict';
+
+  const $ = (selector, scope = document) => scope.querySelector(selector);
+  const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+
+  const state = {
+    tab: 'home',
+    format: 'mp4',
+    quality: '1080p',
+    audioLang: '',
+    downloadDir: 'Downloads/YTDow',
+    appVersion: '—',
+    tasks: {},
+    urlHistory: [],
+    downloads: [],
+    attempts: [],
+    taskState: 'idle',
+    animationTimer: null,
+    animationNonce: 0,
+    sizeTimer: null,
+    lastSizeBytes: 0,
+    lastSizeLabel: '',
+  };
+
+  const mascotAnimations = {
+    downloading: { src: 'animations/dance.webp', durationMs: 2000, loop: true },
+    success: { src: 'animations/success.webp', durationMs: 2417, loop: false },
+    errorIntro: { src: 'animations/error-intro.webp', durationMs: 1083, loop: false },
+    errorLoop: { src: 'animations/error-loop.webp', durationMs: 1083, loop: true },
+  };
+
+  function callNative(method, fallback, ...args) {
+    try {
+      const bridge = window.Android;
+      if (!bridge || typeof bridge[method] !== 'function') return fallback;
+      const result = bridge[method](...args);
+      return result === undefined || result === null ? fallback : result;
+    } catch (error) {
+      console.error(`Android.${method} failed`, error);
+      return fallback;
+    }
+  }
+
+  function parseArray(value) {
+    try {
+      const parsed = JSON.parse(value || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function normalizeEntries(entries) {
+    return entries.map(entry => {
+      if (typeof entry !== 'string') return entry;
+      try { return JSON.parse(entry); } catch (_) { return null; }
+    }).filter(Boolean);
+  }
+
+  function escapeHtml(value) {
+    const node = document.createElement('div');
+    node.textContent = String(value ?? '');
+    return node.innerHTML;
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, '&#96;');
+  }
+
+  function plural(count, one, few, many) {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+    return many;
+  }
+
+  function formatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value <= 0) return '—';
+    const unit = value >= 1024 ** 3 ? 'ГБ' : 'МБ';
+    const divisor = unit === 'ГБ' ? 1024 ** 3 : 1024 ** 2;
+    return `${(value / divisor).toFixed(1).replace('.', ',')} ${unit}`;
+  }
+
+  function timeAgo(timestamp) {
+    const value = Number(timestamp) || 0;
+    if (!value) return 'недавно';
+    const seconds = Math.max(0, (Date.now() - value) / 1000);
+    if (seconds < 60) return 'только что';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} мин назад`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} ч назад`;
+    if (seconds < 172800) return 'вчера';
+    return `${Math.floor(seconds / 86400)} дн назад`;
+  }
+
+  function folderFromPath(filePath) {
+    const path = String(filePath || '');
+    const index = path.lastIndexOf('/');
+    return index > 0 ? path.slice(0, index) : state.downloadDir;
+  }
+
+  function showToast(message) {
+    const toast = $('#toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
+  function hasActiveTasks() {
+    return Object.values(state.tasks).some(task => task.status === 'queued' || task.status === 'downloading');
+  }
+
+  function playMascotAnimation(name, onComplete) {
+    const mascot = $('#mascot');
+    const animation = mascotAnimations[name];
+    const playId = ++state.animationNonce;
+    clearTimeout(state.animationTimer);
+    mascot.dataset.animation = name.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+    mascot.dataset.animationReady = 'false';
+
+    mascot.onload = () => {
+      if (playId !== state.animationNonce) return;
+      mascot.dataset.animationReady = 'true';
+      if (!animation.loop && onComplete) {
+        state.animationTimer = setTimeout(() => {
+          if (playId === state.animationNonce) onComplete();
+        }, animation.durationMs);
+      }
+    };
+    mascot.onerror = () => {
+      if (playId !== state.animationNonce) return;
+      mascot.dataset.animationReady = 'error';
+      showToast('Не удалось загрузить анимацию персонажа');
+    };
+
+    mascot.removeAttribute('src');
+    void mascot.offsetWidth;
+    const separator = animation.src.includes('?') ? '&' : '?';
+    mascot.src = `${animation.src}${separator}play=${playId}`;
+  }
+
+  function setMascotState(next) {
+    const stage = $('#mascot-stage');
+    const mascot = $('#mascot');
+    clearTimeout(state.animationTimer);
+    state.taskState = next;
+
+    if (next === 'idle') {
+      state.animationNonce += 1;
+      mascot.removeAttribute('src');
+      mascot.dataset.animation = 'idle';
+      mascot.alt = '';
+      stage.classList.add('hidden');
+      return;
+    }
+
+    stage.classList.remove('hidden');
+    if (next === 'downloading') {
+      mascot.alt = 'Альтушка плавно танцует во время загрузки';
+      playMascotAnimation('downloading');
+      return;
+    }
+
+    if (next === 'success') {
+      mascot.alt = 'Альтушка показывает победный жест и отправляет воздушный поцелуй';
+      playMascotAnimation('success', () => {
+        if (state.taskState !== 'success') return;
+        if (hasActiveTasks()) setMascotState('downloading');
+        else setMascotState('idle');
+      });
+      return;
+    }
+
+    if (next === 'error') {
+      mascot.alt = 'Расстроенная альтушка плачет из-за ошибки загрузки';
+      playMascotAnimation('errorIntro', () => {
+        if (state.taskState === 'error') playMascotAnimation('errorLoop');
+      });
+    }
+  }
+
+  function switchTab(tab) {
+    state.tab = tab;
+    $$('.page').forEach(page => page.classList.toggle('active', page.dataset.page === tab));
+    $$('.nav-button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+    if (tab === 'library') refreshDownloads();
+    if (tab === 'history') refreshAttempts();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openSheet(name) {
+    closeSheets(false);
+    $('#overlay').classList.add('show');
+    $(`#sheet-${name}`).classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSheets(restoreScroll = true) {
+    $('#overlay').classList.remove('show');
+    $$('.sheet').forEach(sheet => sheet.classList.remove('show'));
+    if (restoreScroll) document.body.style.overflow = '';
+  }
+
+  function resetSizeResult() {
+    clearTimeout(state.sizeTimer);
+    state.lastSizeBytes = 0;
+    state.lastSizeLabel = '';
+    const button = $('#size-button');
+    button.classList.remove('loading', 'resolved');
+    button.setAttribute('aria-label', 'Узнать размер файла');
+    $('#size-text').textContent = 'Узнать размер';
+  }
+
+  function setChoice(type, value, label, button) {
+    state[type] = value;
+    $(`#${type}-value`).textContent = label;
+    $$(`[data-choice="${type}"]`).forEach(option => option.classList.toggle('selected', option === button));
+    if (type === 'format') $('#settings-format').textContent = label;
+    resetSizeResult();
+    closeSheets();
+    showToast(`${type === 'format' ? 'Формат' : 'Качество'}: ${label}`);
+  }
+
+  function renderUrlHistory() {
+    const container = $('#url-history');
+    container.innerHTML = state.urlHistory.slice().reverse().map((url, index) =>
+      `<button class="history-suggestion" type="button" data-url-index="${index}">${escapeHtml(url)}</button>`
+    ).join('');
+    if (!container.children.length) container.classList.remove('show');
+  }
+
+  function showUrlHistory() {
+    if (!state.urlHistory.length || $('#url-input').value.trim()) return;
+    $('#url-history').classList.add('show');
+  }
+
+  function refreshUrlHistory() {
+    state.urlHistory = parseArray(callNative('getHistory', '[]'));
+    renderUrlHistory();
+  }
+
+  function refreshDownloads() {
+    state.downloads = normalizeEntries(parseArray(callNative('getDownloadHistory', '[]'))).reverse();
+    renderLibrary();
+    renderHistory();
+  }
+
+  function refreshAttempts() {
+    state.attempts = normalizeEntries(parseArray(callNative('getAttemptHistory', '[]'))).reverse();
+    renderHistory();
+  }
+
+  function startDownload() {
+    const input = $('#url-input');
+    const urls = input.value.split(',').map(value => value.trim()).filter(value => /^https?:\/\//i.test(value));
+    if (!urls.length) {
+      showToast('Вставьте корректную ссылку');
+      input.focus();
+      return;
+    }
+
+    const estimatedSize = urls.length === 1 ? state.lastSizeBytes : 0;
+    let started = 0;
+    urls.forEach(url => {
+      const taskId = callNative('startDownload', '', url, state.format, state.quality, state.audioLang);
+      if (!taskId) return;
+      state.tasks[taskId] = {
+        id: taskId,
+        url,
+        title: 'Подготовка загрузки',
+        format: state.format,
+        quality: state.quality,
+        status: 'queued',
+        percent: 0,
+        speed: '',
+        filePath: '',
+        sizeBytes: estimatedSize,
+        error: '',
+      };
+      started += 1;
+    });
+
+    if (!started) {
+      showToast('Не удалось запустить загрузку');
+      return;
+    }
+
+    input.value = '';
+    $('#url-history').classList.remove('show');
+    refreshUrlHistory();
+    renderTasks();
+    setMascotState('downloading');
+    showToast(started > 1 ? `Запущено загрузок: ${started}` : 'Загрузка началась');
+  }
+
+  function checkSize() {
+    const raw = $('#url-input').value.trim();
+    const url = raw.split(',').map(value => value.trim()).find(value => /^https?:\/\//i.test(value));
+    if (!url) {
+      showToast('Сначала вставьте ссылку');
+      return;
+    }
+
+    const button = $('#size-button');
+    button.classList.remove('resolved');
+    button.classList.add('loading');
+    button.setAttribute('aria-label', 'Рассчитываем размер файла');
+    callNative('checkSize', undefined, url, state.format, state.quality, state.audioLang);
+    clearTimeout(state.sizeTimer);
+    state.sizeTimer = setTimeout(() => {
+      if (button.classList.contains('loading')) onSizeError('Превышено время ожидания');
+    }, 30000);
+  }
+
+  function onSizeResult(payload) {
+    clearTimeout(state.sizeTimer);
+    let data;
+    try { data = JSON.parse(payload); } catch (_) { data = {}; }
+    const bytes = Number(data.sizeBytes) || 0;
+    const button = $('#size-button');
+    button.classList.remove('loading');
+    button.classList.add('resolved');
+    state.lastSizeBytes = bytes;
+    state.lastSizeLabel = formatBytes(bytes);
+    $('#size-text').textContent = state.lastSizeLabel;
+    button.setAttribute('aria-label', bytes > 0 ? `Размер файла ${state.lastSizeLabel}` : 'Размер файла неизвестен');
+  }
+
+  function onSizeError() {
+    clearTimeout(state.sizeTimer);
+    const button = $('#size-button');
+    button.classList.remove('loading');
+    button.classList.add('resolved');
+    $('#size-text').textContent = '—';
+    button.setAttribute('aria-label', 'Не удалось определить размер файла');
+  }
+
+  function taskTitle(task) {
+    if (task.title && task.title !== 'Подготовка загрузки' && task.title !== 'Ожидание...') return task.title;
+    try {
+      const parsed = new URL(task.url);
+      return parsed.hostname.replace(/^www\./, '');
+    } catch (_) {
+      return task.url || 'Видео';
+    }
+  }
+
+  function taskStatus(task) {
+    if (task.status === 'completed') return '<div class="task-status state-success">Готово</div>';
+    if (task.status === 'error') return `<div class="task-status state-error">${escapeHtml(task.error || 'Ошибка загрузки')}</div>`;
+    if (task.status === 'cancelled') return '<div class="task-status state-cancelled">Отменено</div>';
+    if (task.status === 'queued') return '<div class="task-status">Подготовка…</div>';
+    const percent = Number(task.percent);
+    return percent >= 0
+      ? `<div class="task-status">Загрузка… <strong>${percent}%</strong></div>`
+      : '<div class="task-status">Загрузка…</div>';
+  }
+
+  function renderTasks() {
+    const container = $('#task-list');
+    const taskIds = Object.keys(state.tasks).reverse();
+    if (!taskIds.length) {
+      container.innerHTML = '<div class="empty-state">Нет активных загрузок</div>';
+      return;
+    }
+
+    container.innerHTML = taskIds.map(taskId => {
+      const task = state.tasks[taskId];
+      const percent = Number(task.percent);
+      const indeterminate = task.status === 'queued' || (task.status === 'downloading' && percent < 0);
+      const width = task.status === 'completed' ? 100 : task.status === 'error' || task.status === 'cancelled' ? Math.max(8, percent || 0) : Math.max(0, percent || 0);
+      const active = task.status === 'queued' || task.status === 'downloading';
+      const size = formatBytes(task.sizeBytes);
+      const cardClass = ['completed', 'error', 'cancelled'].includes(task.status) ? ` ${task.status}` : '';
+      let actions = '';
+      if (task.status === 'completed') {
+        actions = `<div class="task-actions"><button class="soft-button" type="button" data-task-action="open" data-task-id="${escapeAttr(taskId)}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-play"/></svg><span>Открыть</span></button><button class="soft-button" type="button" data-task-action="folder" data-task-id="${escapeAttr(taskId)}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-folder"/></svg><span>Папка</span></button></div>`;
+      } else if (task.status === 'error') {
+        actions = `<div class="task-actions"><button class="soft-button" type="button" data-task-action="retry" data-task-id="${escapeAttr(taskId)}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-refresh"/></svg><span>Повторить</span></button></div>`;
+      }
+
+      return `<article class="task-card${cardClass}">
+        <div class="task-top">
+          <div class="task-icon"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#${task.format === 'mp3' ? 'i-file' : 'i-download'}"/></svg></div>
+          <div class="task-copy"><div class="task-title">${escapeHtml(taskTitle(task))}</div>${taskStatus(task)}</div>
+          ${active ? `<button class="cancel-button" type="button" data-task-action="cancel" data-task-id="${escapeAttr(taskId)}" aria-label="Отменить загрузку"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button>` : '<div></div>'}
+        </div>
+        <div class="progress-track"><div class="progress-fill${indeterminate ? ' indeterminate' : ''}" style="width:${width}%"></div></div>
+        <div class="stats">
+          <div class="stat"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-speed"/></svg><div><span>Скорость</span><strong>${escapeHtml(task.status === 'completed' ? 'Завершено' : task.status === 'error' || task.status === 'cancelled' ? 'Остановлено' : task.speed || 'Подготовка')}</strong></div></div>
+          <div class="stat"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-file"/></svg><div><span>Размер файла</span><strong>${size}</strong></div></div>
+        </div>${actions}
+      </article>`;
+    }).join('');
+  }
+
+  function renderLibrary() {
+    const count = state.downloads.length;
+    $('#library-count').textContent = `${count} ${plural(count, 'файл', 'файла', 'файлов')}`;
+    const container = $('#library-list');
+    if (!count) {
+      container.innerHTML = '<div class="empty-state">Скачанные файлы появятся здесь</div>';
+      return;
+    }
+
+    container.innerHTML = state.downloads.map((entry, index) => {
+      const format = String(entry.format || 'mp4').toUpperCase();
+      const icon = entry.format === 'mp3' ? 'i-file' : 'i-video';
+      return `<article class="file-card">
+        <div class="file-main"><div class="file-thumb"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#${icon}"/></svg></div><div><div class="file-title">${escapeHtml(entry.title || entry.url || 'Файл')}</div><div class="file-meta">${escapeHtml(format)} · ${escapeHtml(entry.quality || 'best')} · ${formatBytes(entry.sizeBytes)} · ${timeAgo(entry.time)}</div></div></div>
+        <div class="file-actions">
+          <button class="soft-button" type="button" data-library-action="open" data-index="${index}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-play"/></svg><span>Открыть</span></button>
+          <button class="soft-button" type="button" data-library-action="folder" data-index="${index}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-folder"/></svg><span>Папка</span></button>
+          <button class="soft-button" type="button" data-library-action="delete" data-index="${index}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-trash"/></svg><span>Удалить</span></button>
+        </div>
+      </article>`;
+    }).join('');
+  }
+
+  function mergedHistory() {
+    const result = state.attempts.map(entry => ({ ...entry }));
+    const paths = new Set(result.map(entry => entry.filePath).filter(Boolean));
+    state.downloads.forEach(entry => {
+      if (entry.filePath && paths.has(entry.filePath)) return;
+      result.push({ ...entry, status: 'completed' });
+    });
+    return result.sort((left, right) => Number(right.time || right.finishedAt || 0) - Number(left.time || left.finishedAt || 0));
+  }
+
+  function renderHistory() {
+    const entries = mergedHistory();
+    const count = entries.length;
+    $('#history-count').textContent = `${count} ${plural(count, 'запись', 'записи', 'записей')}`;
+    const container = $('#history-list');
+    if (!count) {
+      container.innerHTML = '<div class="empty-state">История загрузок пока пуста</div>';
+      return;
+    }
+
+    container.innerHTML = entries.map(entry => {
+      const status = entry.status === 'failed' ? 'error' : entry.status || 'completed';
+      const statusClass = status === 'completed' ? 'success' : status === 'cancelled' ? 'cancelled' : status === 'error' ? 'error' : 'queued';
+      const icon = statusClass === 'success' ? 'i-check' : statusClass === 'cancelled' ? 'i-x' : statusClass === 'error' ? 'i-alert' : 'i-refresh';
+      const statusLabel = statusClass === 'success' ? formatBytes(entry.sizeBytes) : statusClass === 'cancelled' ? 'Отменено' : statusClass === 'error' ? 'Ошибка' : 'В очереди';
+      const details = [timeAgo(entry.time || entry.finishedAt), String(entry.format || 'mp4').toUpperCase(), entry.quality || 'best'];
+      if (statusClass === 'error' && entry.error) details.push(entry.error);
+      return `<article class="history-card"><div class="history-state ${statusClass}"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#${icon}"/></svg></div><div><div class="history-title">${escapeHtml(entry.title || entry.url || 'Загрузка')}</div><div class="history-meta">${details.map(escapeHtml).join(' · ')}</div></div><div class="history-size">${escapeHtml(statusLabel)}</div></article>`;
+    }).join('');
+  }
+
+  function cancelDownload(taskId) {
+    const task = state.tasks[taskId];
+    if (!task) return;
+    callNative('cancelDownload', undefined, taskId);
+    task.status = 'cancelled';
+    renderTasks();
+    setMascotState(hasActiveTasks() ? 'downloading' : 'idle');
+    showToast('Загрузка отменена');
+    setTimeout(refreshAttempts, 180);
+  }
+
+  function retryDownload(taskId) {
+    const previous = state.tasks[taskId];
+    if (!previous) return;
+    const nextId = callNative('startDownload', '', previous.url, previous.format, previous.quality, state.audioLang);
+    if (!nextId) return showToast('Не удалось повторить загрузку');
+    state.tasks[nextId] = { ...previous, id: nextId, status: 'queued', percent: 0, speed: '', error: '', filePath: '' };
+    delete state.tasks[taskId];
+    renderTasks();
+    setMascotState('downloading');
+    showToast('Повторная загрузка началась');
+  }
+
+  function openTaskFile(taskId) {
+    const task = state.tasks[taskId];
+    if (task?.filePath) callNative('openFile', undefined, task.filePath);
+    else showToast('Файл не найден');
+  }
+
+  function openTaskFolder(taskId) {
+    const task = state.tasks[taskId];
+    callNative('openFolder', undefined, task?.filePath ? folderFromPath(task.filePath) : state.downloadDir);
+  }
+
+  function handleLibraryAction(action, index) {
+    const entry = state.downloads[index];
+    if (!entry) return;
+    if (action === 'open') return callNative('openFile', undefined, entry.filePath);
+    if (action === 'folder') return callNative('openFolder', undefined, folderFromPath(entry.filePath));
+    if (action === 'delete' && window.confirm('Удалить файл?')) {
+      callNative('deleteFile', undefined, entry.filePath);
+      state.downloads.splice(index, 1);
+      renderLibrary();
+      renderHistory();
+      showToast('Файл удалён');
+      setTimeout(refreshDownloads, 250);
+    }
+  }
+
+  function onProgress(taskId, percent, speed) {
+    const task = state.tasks[taskId] || {
+      id: taskId, url: '', title: 'Видео загружается', format: 'mp4', quality: 'best', sizeBytes: 0, filePath: '', error: '',
+    };
+    task.status = 'downloading';
+    task.percent = Number(percent);
+    if (speed) task.speed = speed;
+    state.tasks[taskId] = task;
+    renderTasks();
+    if (state.taskState === 'idle') setMascotState('downloading');
+  }
+
+  function onComplete(taskId, filePath) {
+    const task = state.tasks[taskId] || {
+      id: taskId, url: '', title: '', format: 'mp4', quality: 'best', sizeBytes: 0, speed: '', error: '',
+    };
+    task.status = 'completed';
+    task.percent = 100;
+    task.filePath = filePath || task.filePath || '';
+    state.tasks[taskId] = task;
+    refreshDownloads();
+    refreshAttempts();
+    const historyMatch = state.downloads.find(entry => entry.filePath === task.filePath);
+    if (historyMatch) {
+      task.title = historyMatch.title || task.title;
+      task.sizeBytes = historyMatch.sizeBytes || task.sizeBytes;
+    }
+    renderTasks();
+    setMascotState('success');
+  }
+
+  function onError(taskId, error) {
+    const task = state.tasks[taskId] || {
+      id: taskId, url: '', title: '', format: 'mp4', quality: 'best', sizeBytes: 0, speed: '', filePath: '',
+    };
+    task.status = 'error';
+    task.error = error || 'Ошибка загрузки';
+    state.tasks[taskId] = task;
+    refreshAttempts();
+    renderTasks();
+    setMascotState('error');
+  }
+
+  function onHistoryChanged() {
+    refreshDownloads();
+    refreshAttempts();
+    renderTasks();
+  }
+
+  function checkUpdate() {
+    const status = $('#update-status');
+    const button = $('#update-button');
+    status.textContent = 'Проверяем обновления…';
+    status.classList.remove('error');
+    button.disabled = true;
+    button.textContent = 'Проверяем…';
+    callNative('checkUpdate', undefined);
+  }
+
+  function onUpdateResult(resultValue) {
+    const status = $('#update-status');
+    let result;
+    try { result = JSON.parse(resultValue); } catch (_) { result = { error: 'Некорректный ответ' }; }
+    const updateButton = $('#update-button');
+    updateButton.disabled = false;
+    updateButton.textContent = 'Проверить обновление';
+    status.classList.remove('error');
+    status.replaceChildren();
+    if (result.error) {
+      status.textContent = `Ошибка: ${result.error}`;
+      status.classList.add('error');
+      return;
+    }
+    if (!result.hasUpdate) {
+      status.textContent = `Установлена последняя версия (${result.current || state.appVersion})`;
+      return;
+    }
+    if (!result.downloadUrl) {
+      status.textContent = `Доступна версия ${result.latest}, APK пока не опубликован`;
+      return;
+    }
+    const text = document.createTextNode(`Доступна версия ${result.latest} `);
+    const button = document.createElement('button');
+    button.className = 'soft-button';
+    button.type = 'button';
+    button.textContent = 'Скачать и установить';
+    button.addEventListener('click', () => downloadUpdate(result.downloadUrl));
+    status.append(text, button);
+  }
+
+  function downloadUpdate(url) {
+    $('#update-status').textContent = 'Скачивание обновления… 0%';
+    $('#update-button').disabled = true;
+    callNative('downloadUpdate', undefined, url);
+  }
+
+  function onUpdateProgress(percent) {
+    $('#update-status').textContent = `Скачивание обновления… ${Number(percent) || 0}%`;
+  }
+
+  function onUpdateStatus(message, isError) {
+    const status = $('#update-status');
+    status.textContent = String(message || '');
+    status.classList.toggle('error', Boolean(isError));
+    $('#update-button').disabled = false;
+  }
+
+  function initialize() {
+    state.downloadDir = callNative('getDownloadDir', 'Downloads/YTDow');
+    state.appVersion = callNative('getAppVersion', '—');
+    $('#folder-button span').textContent = state.downloadDir;
+    $('#settings-path').textContent = state.downloadDir;
+    $('#settings-format').textContent = 'MP4';
+    $('#app-version').textContent = state.appVersion;
+    refreshUrlHistory();
+    refreshDownloads();
+    refreshAttempts();
+    renderTasks();
+    setMascotState('idle');
+
+    Object.values(mascotAnimations).forEach(animation => {
+      const image = new Image();
+      image.src = animation.src;
+    });
+
+    $$('[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+    $$('[data-open-sheet]').forEach(button => button.addEventListener('click', () => openSheet(button.dataset.openSheet)));
+    $$('[data-choice]').forEach(button => button.addEventListener('click', () => setChoice(button.dataset.choice, button.dataset.value, button.dataset.label, button)));
+    $('#overlay').addEventListener('click', () => closeSheets());
+    $('#download-button').addEventListener('click', startDownload);
+    $('#size-button').addEventListener('click', checkSize);
+    $('#folder-button').addEventListener('click', () => callNative('openFolder', undefined, state.downloadDir));
+    $('#clear-url').addEventListener('click', () => { $('#url-input').value = ''; $('#url-input').focus(); showUrlHistory(); });
+    $('#url-input').addEventListener('keydown', event => { if (event.key === 'Enter') startDownload(); });
+    $('#url-input').addEventListener('input', () => { resetSizeResult(); $('#url-history').classList.remove('show'); });
+    $('#url-input').addEventListener('focus', showUrlHistory);
+    $('#url-input').addEventListener('blur', () => setTimeout(() => $('#url-history').classList.remove('show'), 160));
+    $('#url-history').addEventListener('click', event => {
+      const button = event.target.closest('[data-url-index]');
+      if (!button) return;
+      const reversed = state.urlHistory.slice().reverse();
+      $('#url-input').value = reversed[Number(button.dataset.urlIndex)] || '';
+      $('#url-history').classList.remove('show');
+      resetSizeResult();
+    });
+    $('#task-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-task-action]');
+      if (!button) return;
+      const taskId = button.dataset.taskId;
+      if (button.dataset.taskAction === 'cancel') cancelDownload(taskId);
+      if (button.dataset.taskAction === 'retry') retryDownload(taskId);
+      if (button.dataset.taskAction === 'open') openTaskFile(taskId);
+      if (button.dataset.taskAction === 'folder') openTaskFolder(taskId);
+    });
+    $('#library-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-library-action]');
+      if (button) handleLibraryAction(button.dataset.libraryAction, Number(button.dataset.index));
+    });
+    $('#update-button').addEventListener('click', checkUpdate);
+  }
+
+  Object.assign(window, {
+    onProgress,
+    onComplete,
+    onError,
+    onSizeResult,
+    onSizeError,
+    onHistoryChanged,
+    onUpdateResult,
+    onUpdateProgress,
+    onUpdateStatus,
+    YTDowApp: { state, switchTab, setMascotState, refreshDownloads, refreshAttempts },
+  });
+
+  document.addEventListener('DOMContentLoaded', initialize, { once: true });
+})();

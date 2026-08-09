@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
@@ -37,6 +38,7 @@ class DownloadService : Service() {
             val tid = i?.getStringExtra(EXTRA_TASK_ID) ?: return
             YoutubeDL.getInstance().destroyProcessById(tid)
             active.remove(tid)
+            AttemptHistoryStore.cancel(this@DownloadService, tid)
             if (active.isEmpty()) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -75,6 +77,7 @@ class DownloadService : Service() {
         notifySummary()
 
         pool.execute {
+            var title = ""
             try {
                 val stagingDirectory = DownloadStagingDirectory.from(filesDir).apply {
                     check(mkdirs() || isDirectory) { "Unable to create download staging directory" }
@@ -111,7 +114,6 @@ class DownloadService : Service() {
                 }
 
                 var filePath = ""
-                var title = ""
                 YoutubeDL.getInstance().execute(req, tid) progressCallback@{ pct, eta, line ->
                     if (!active.containsKey(tid)) return@progressCallback
                     Log.d("YTDowLine", "pct=$pct eta=$eta line=$line")
@@ -136,14 +138,20 @@ class DownloadService : Service() {
                 }
 
                 if (active.containsKey(tid)) {
+                    val sourceSizeBytes = File(filePath).length()
                     val finalPath = copyToPublicDownloads(filePath)
                         ?: throw IllegalStateException("Не удалось опубликовать загрузку в Downloads")
-                    saveToHistory(url, title, fmt, qual, finalPath)
+                    saveToHistory(url, title, fmt, qual, finalPath, sourceSizeBytes)
+                    AttemptHistoryStore.complete(
+                        this@DownloadService, tid, url, title, fmt, qual, finalPath, sourceSizeBytes
+                    )
                     sendComplete(tid, finalPath)
                 }
             } catch (e: Exception) {
                 if (active.containsKey(tid)) {
-                    sendError(tid, e.message ?: "Ошибка")
+                    val message = e.message ?: "Ошибка"
+                    AttemptHistoryStore.fail(this@DownloadService, tid, url, title, fmt, qual, message)
+                    sendError(tid, message)
                 }
             } finally {
                 active.remove(tid)
@@ -159,7 +167,14 @@ class DownloadService : Service() {
     }
 
     // История — объекты внутри массива (не JSON-строки)
-    private fun saveToHistory(url: String, title: String, fmt: String, qual: String, filePath: String) {
+    private fun saveToHistory(
+        url: String,
+        title: String,
+        fmt: String,
+        qual: String,
+        filePath: String,
+        sizeBytes: Long
+    ) {
         try {
             val prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
             val hist = prefs.getString("download_history", "[]") ?: "[]"
@@ -170,6 +185,7 @@ class DownloadService : Service() {
                 put("format", fmt)
                 put("quality", qual)
                 put("filePath", filePath)
+                put("sizeBytes", sizeBytes)
                 put("time", System.currentTimeMillis())
             }
             arr.put(entry)  // H6: объект, не строка
@@ -185,6 +201,34 @@ class DownloadService : Service() {
 
     private fun copyToPublicDownloads(srcPath: String): String? {
         if (srcPath.isEmpty() || !File(srcPath).exists()) return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            copyToScopedDownloads(srcPath)
+        } else {
+            copyToLegacyDownloads(srcPath)
+        }
+    }
+
+    private fun copyToLegacyDownloads(srcPath: String): String? = try {
+        val sourceFile = File(srcPath)
+        @Suppress("DEPRECATION")
+        val targetDirectory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "YTDow"
+        )
+        check(targetDirectory.mkdirs() || targetDirectory.isDirectory) {
+            "Не удалось создать папку Downloads/YTDow"
+        }
+        val targetFile = File(targetDirectory, sourceFile.name)
+        sourceFile.copyTo(targetFile, overwrite = true)
+        sourceFile.delete()
+        targetFile.absolutePath
+    } catch (exception: Exception) {
+        Log.e("YTDow", "Unable to publish legacy download", exception)
+        null
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun copyToScopedDownloads(srcPath: String): String? {
         var targetUri: Uri? = null
         return try {
             val sourceFile = File(srcPath)
@@ -198,9 +242,7 @@ class DownloadService : Service() {
                 put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                 put(MediaStore.Downloads.MIME_TYPE, mime)
                 put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTDow")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val mediaUri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: return null
@@ -209,11 +251,9 @@ class DownloadService : Service() {
                 sourceFile.inputStream().use { inp -> inp.copyTo(out) }
             } ?: return null
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.clear()
-                values.put(MediaStore.Downloads.IS_PENDING, 0)
-                contentResolver.update(mediaUri, values, null, null)
-            }
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            contentResolver.update(mediaUri, values, null, null)
             sourceFile.delete()
             return "/storage/emulated/0/Download/YTDow/$fileName"
         } catch (exception: Exception) {

@@ -1,438 +1,1041 @@
-<!-- GIT SNAPSHOT: a504d08 — working state. To rollback: git checkout a504d08 -- app/src/main/assets/index.html -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
-<title>YTDow</title>
-<style>
-:root{--bg:#121212;--card:#1E1E1E;--input:#2C2C2C;--accent:#1E88E5;--accent2:#1565C0;--t1:#fff;--t2:#B0B0B0;--t3:#757575;--r:20px;--rm:14px}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{background:var(--bg);color:var(--t1);font-family:-apple-system,'Helvetica Neue',sans-serif;min-height:100vh;padding-bottom:80px;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="data:,">
+  <title>YTDow — OLED prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #000000;
+      --surface: #070709;
+      --surface-2: #0c0c0f;
+      --surface-3: #111116;
+      --line: #28282f;
+      --line-soft: #18181d;
+      --pink: #ff5ca8;
+      --pink-hot: #ff3f98;
+      --pink-soft: #ff8bc2;
+      --pink-glow: rgba(255, 76, 158, .34);
+      --white: #f8f5f8;
+      --muted: #9a969f;
+      --muted-2: #625f68;
+      --success: #65e6ac;
+      --danger: #ff5b73;
+      --radius: 22px;
+      --radius-sm: 16px;
+      --nav-height: 88px;
+    }
 
-/* ── Header ── */
-.header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;position:sticky;top:0;background:rgba(18,18,18,.85);backdrop-filter:blur(10px);z-index:10}
-.header-title{font-weight:700;font-size:20px}
-.header-ver{font-size:12px;color:var(--t3)}
+    * { box-sizing: border-box; }
 
-/* ── Pages ── */
-.page{padding:0 20px;display:none}
-.page.active{display:block}
+    html {
+      background: var(--bg);
+      min-height: 100%;
+    }
 
-/* ── Input ── */
-.input-wrap{background:var(--input);border-radius:var(--rm);padding:12px 16px;display:flex;align-items:center;gap:12px;border:1px solid transparent;transition:.2s}
-.input-wrap:focus-within{border-color:var(--accent);background:#333}
-.input-wrap span{color:var(--t3);flex-shrink:0}
-.input-wrap input{background:transparent;border:none;outline:none;color:var(--t1);width:100%;font-size:16px;font-family:inherit}
-.input-wrap input::placeholder{color:var(--t3)}
-.history-wrap{position:relative;margin-bottom:4px}
-.history-list{display:none;position:absolute;top:100%;left:0;right:0;background:var(--input);border:1px solid #333;border-radius:10px;z-index:10;max-height:200px;overflow-y:auto;margin-top:2px}
-.history-list.show{display:block}
-.history-item{padding:12px 16px;font-size:13px;color:var(--t2);cursor:pointer;border-bottom:1px solid #333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.history-item:last-child{border-bottom:none}
-.history-item:active{background:#333;color:var(--t1)}
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--white);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
 
-/* ── Pills ── */
-.options-row{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
-.pill{background:var(--card);border:1px solid #333;border-radius:50px;padding:8px 14px;color:var(--t1);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.2s}
-.pill:active{transform:scale(.96)}
-.pill span{color:var(--t2);font-weight:400}
-.pill.folder{padding:8px 10px}
-.size-trigger{background:transparent;border:none;color:var(--t2);font-size:13px;cursor:pointer;padding:6px 10px;border-radius:20px;transition:.2s;display:flex;align-items:center;gap:4px;margin-left:auto}
-.size-trigger:active{background:var(--input);color:var(--t1)}
-.size-trigger svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
-#sizeStatus{font-size:12px;color:var(--t2);margin:4px 0 0 4px;min-height:18px}
+    button, input { font: inherit; }
+    button { -webkit-appearance: none; appearance: none; }
 
-/* ── Download btn ── */
-.dl-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:var(--rm);padding:16px;font-size:17px;font-weight:600;margin-top:18px;cursor:pointer;transition:.2s;box-shadow:0 4px 12px rgba(30,136,229,.3)}
-.dl-btn:active{transform:scale(.98);background:var(--accent2)}
+    .app {
+      width: min(100%, 520px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+      background: var(--bg);
+      position: relative;
+      overflow-x: hidden;
+    }
 
-/* ── Task cards ── */
-.task-card{background:var(--card);border-radius:var(--rm);padding:16px;margin-bottom:12px;border:1px solid #2a2a2a;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-.task-header{display:flex;align-items:center;gap:14px;margin-bottom:12px}
-.task-icon-wrap{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.task-icon-wrap.video{background:linear-gradient(135deg,#1E88E5,#1565C0);border-radius:10px}
-.task-icon-wrap.audio{background:linear-gradient(135deg,#7C4DFF,#651FFF);border-radius:50%}
-.task-icon-wrap svg{width:22px;height:22px;fill:#fff}
-.task-info{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
-.task-title{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.task-meta{font-size:12px;color:var(--t2)}
-.task-status-row{display:flex;justify-content:space-between;font-size:13px;font-weight:500;margin-bottom:6px}
-.task-status-row .pct{color:var(--t1)}
-.task-status-row .eta{color:var(--t3)}
-.track{height:6px;background:#333;border-radius:3px;width:100%;overflow:hidden;margin-bottom:12px}
-.fill{height:100%;background:linear-gradient(90deg,var(--accent) 0%,#4fc3f7 50%,var(--accent) 100%);background-size:200% 100%;border-radius:3px;animation:shimmer 1.5s infinite linear}
-.fill.indeterminate{width:100%!important;animation:indeterminate 1.5s ease-in-out infinite;background:var(--accent);background-size:auto}
-@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-@keyframes indeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
-.task-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #2a2a2a;padding-top:10px}
-.task-actions .act{background:transparent;border:none;color:var(--t2);padding:8px;border-radius:8px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:5px;font-size:13px}
-.task-actions .act:active{background:#333;color:var(--t1)}
-.task-status-done{color:#4caf50;font-size:13px;font-weight:500}
-.task-error{color:#ef5350;font-size:13px}
-.task-cancelled{color:#ff9f0a;font-size:13px}
-.cancel-circle{width:38px;height:38px;border-radius:50%;border:1px solid #333;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.2s}
-.cancel-circle:active{transform:scale(.9);background:#2a2a2a}
-.cancel-circle svg{width:16px;height:16px;stroke:#ef5350;stroke-width:2.5;fill:none;stroke-linecap:round}
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 74px;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) 48px;
+      align-items: center;
+      padding: calc(10px + env(safe-area-inset-top)) 18px 10px;
+      background: rgba(0, 0, 0, .91);
+      backdrop-filter: blur(18px);
+    }
 
-/* ── Library ── */
-.lib-item{background:var(--card);border-radius:var(--rm);padding:16px;margin-bottom:12px;border:1px solid #2a2a2a;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-.lib-item .lib-header{display:flex;gap:12px;align-items:flex-start}
-.lib-thumb{width:52px;height:52px;background:#252525;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555;font-size:20px;flex-shrink:0}
-.lib-info{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
-.lib-title{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lib-meta{font-size:12px;color:var(--t2);display:flex;gap:8px;align-items:center}
-.lib-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #2a2a2a;margin-top:10px;padding-top:10px}
-.lib-actions .act{background:transparent;border:none;color:var(--t2);padding:8px;border-radius:8px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:5px;font-size:13px}
-.lib-actions .act:active{background:#333;color:var(--t1)}
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-width: 0;
+      font-weight: 760;
+      letter-spacing: -.025em;
+      font-size: 19px;
+    }
 
-/* ── Settings ── */
-.settings-card{background:var(--card);border-radius:var(--rm);padding:14px;margin-bottom:8px;border:1px solid #2a2a2a}
-.settings-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px}
-.settings-row+.settings-row{border-top:1px solid #2a2a2a}
-.settings-row .val{font-size:12px;color:var(--t3);max-width:180px;overflow:hidden;text-overflow:ellipsis}
+    .brand span:nth-child(2) {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
 
-/* ── Update ── */
-.update-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:var(--rm);padding:14px;font-size:14px;font-weight:600;margin-top:12px;cursor:pointer}
-.update-btn:active{background:var(--accent2)}
-#updateStatus{font-size:12px;color:var(--t2);text-align:center;margin-top:8px}
-.version-info{font-size:11px;color:#4a4a4a;text-align:center;margin-top:16px}
+    .spark {
+      color: var(--pink);
+      filter: drop-shadow(0 0 8px var(--pink-glow));
+      animation: twinkle 2.1s ease-in-out infinite;
+    }
 
-/* ── Bottom sheets ── */
-.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:100;display:none;opacity:0;transition:opacity .3s;backdrop-filter:blur(4px)}
-.overlay.show{display:block;opacity:1}
-.sheet{position:fixed;bottom:-100%;left:0;width:100%;background:#1E1E1E;border-radius:20px 20px 0 0;z-index:101;padding:20px 24px 30px;transition:bottom .35s cubic-bezier(.32,.72,0,1);box-shadow:0 -8px 30px rgba(0,0,0,.8);max-height:70vh;overflow-y:auto}
-.sheet.show{bottom:0}
-.sheet-handle{width:40px;height:4px;background:#444;border-radius:4px;margin:0 auto 18px}
-.sheet-title{font-size:18px;font-weight:600;margin-bottom:16px}
-.sheet-opt{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #2a2a2a;cursor:pointer}
-.sheet-opt:last-child{border-bottom:none}
-.sheet-opt .left{display:flex;align-items:center;gap:14px}
-.icon-box{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.icon-box.vid{background:#000;border-radius:8px}
-.icon-box.aud{background:#000;border-radius:50%}
-.icon-box svg{width:20px;height:20px;fill:#fff}
-.sheet-opt .txt{display:flex;flex-direction:column;gap:2px}
-.sheet-opt .main{font-size:15px;font-weight:500}
-.sheet-opt .sub{font-size:12px;color:var(--t2)}
-.radio{width:22px;height:22px;border-radius:50%;border:2px solid #555;display:flex;align-items:center;justify-content:center;transition:.2s}
-.sheet-opt.sel .radio{border-color:var(--accent)}
-.sheet-opt.sel .radio::after{content:'';width:12px;height:12px;background:var(--accent);border-radius:50%}
-.sheet-opt.sel .main{color:var(--t1)}
+    .spark:last-child { animation-delay: .7s; }
 
-/* ── Bottom nav ── */
-.bottom-nav{position:fixed;bottom:0;left:0;width:100%;background:#1A1A1A;border-top:1px solid #2a2a2a;display:flex;justify-content:space-around;padding:10px 0 20px;z-index:20}
-.tab-btn{background:transparent;border:none;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font-size:10px;transition:.3s;padding:4px 20px}
-.tab-btn.active{color:var(--accent)}
-.tab-btn svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}
+    @keyframes twinkle {
+      0%, 100% { opacity: .72; transform: scale(.8) rotate(0deg); }
+      50% { opacity: 1; transform: scale(1.1) rotate(12deg); }
+    }
 
-/* ── Toast ── */
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
-.toast.show{opacity:1}
-.empty{text-align:center;color:var(--t3);padding:40px 0;font-size:13px}
-h2{font-size:15px;color:var(--t2);margin:16px 0 8px;font-weight:500;cursor:pointer}
-</style>
+    .icon-button {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      border: 1px solid transparent;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      transition: color .18s ease, background .18s ease, transform .18s ease, border-color .18s ease;
+    }
+
+    .icon-button:active { transform: scale(.92); }
+    .icon-button:hover { color: var(--pink); background: var(--surface-2); border-color: var(--line-soft); }
+    .icon-button svg { width: 25px; height: 25px; }
+
+    .content { padding: 10px 18px 24px; }
+    .page { display: none; animation: page-in .24s ease both; }
+    .page.active { display: block; }
+
+    @keyframes page-in {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .field-label {
+      display: block;
+      margin: 4px 2px 9px;
+      color: #d7d3d9;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .url-field {
+      min-height: 64px;
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr) 38px;
+      align-items: center;
+      gap: 11px;
+      padding: 0 12px 0 17px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .url-field:focus-within {
+      border-color: rgba(255, 92, 168, .78);
+      box-shadow: 0 0 0 3px rgba(255, 92, 168, .08);
+    }
+
+    .url-field > svg { width: 24px; height: 24px; color: var(--pink); }
+
+    .url-field input {
+      min-width: 0;
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--white);
+      font-size: 15px;
+    }
+
+    .url-field input::placeholder { color: var(--muted-2); }
+    .clear-button { width: 38px; height: 38px; border-radius: 12px; }
+
+    .history-popover {
+      display: none;
+      margin-top: 7px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      box-shadow: 0 16px 44px rgba(0, 0, 0, .6);
+    }
+
+    .history-popover.show { display: block; }
+
+    .history-suggestion {
+      width: 100%;
+      padding: 13px 15px;
+      overflow: hidden;
+      border: 0;
+      border-bottom: 1px solid var(--line-soft);
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .history-suggestion:last-child { border-bottom: 0; }
+    .history-suggestion:active { background: var(--surface-3); color: var(--white); }
+
+    .selectors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 17px;
+    }
+
+    .select-field {
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .select-label {
+      display: block;
+      margin: 0 2px 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .select-control {
+      min-height: 62px;
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 18px;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface);
+      transition: border-color .18s ease, transform .18s ease;
+    }
+
+    .select-field:active .select-control { transform: scale(.98); border-color: var(--pink); }
+    .select-control > svg:first-child { width: 26px; height: 26px; color: var(--pink); }
+    .select-control > svg:last-child { width: 18px; height: 18px; color: var(--muted); }
+
+    .selected-value {
+      overflow: hidden;
+      color: #e8e5e9;
+      font-size: 15px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .utility-row {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .folder-button, .size-button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    .folder-button { padding: 0 13px; }
+    .size-button { min-width: 46px; justify-content: center; padding: 0 13px; margin-left: auto; }
+    .folder-button:active, .size-button:active { transform: scale(.96); }
+    .folder-button:hover, .size-button:hover { color: var(--pink); border-color: rgba(255, 92, 168, .55); }
+    .folder-button svg, .size-button svg { width: 20px; height: 20px; flex: 0 0 auto; }
+    .size-text { display: none; color: #dad6dc; font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .size-button.resolved .size-text { display: inline; }
+
+    .size-button.loading svg { animation: spin .72s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .download-button {
+      width: 100%;
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 8px;
+      border: 0;
+      border-radius: var(--radius);
+      background: linear-gradient(105deg, var(--pink-soft), var(--pink));
+      box-shadow: 0 10px 34px rgba(255, 63, 152, .22);
+      color: #12040a;
+      font-size: 20px;
+      font-weight: 850;
+      cursor: pointer;
+      transition: filter .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+
+    .download-button svg { width: 26px; height: 26px; }
+    .download-button:active { transform: scale(.985); filter: brightness(.92); box-shadow: 0 5px 18px rgba(255, 63, 152, .16); }
+
+    .mascot-stage {
+      position: relative;
+      height: clamp(232px, 61vw, 318px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 3px 0 0;
+      overflow: hidden;
+      isolation: isolate;
+      transition: height .36s ease, opacity .36s ease, margin .36s ease;
+    }
+
+    .mascot-stage.hidden {
+      height: 0;
+      margin: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mascot-glow {
+      position: absolute;
+      z-index: -1;
+      width: 210px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 72, 156, .18), rgba(255, 72, 156, 0) 70%);
+      filter: blur(8px);
+    }
+
+    .mascot {
+      width: min(78%, 300px);
+      height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+      filter: drop-shadow(0 10px 18px rgba(255, 66, 151, .12));
+      transform-origin: 50% 88%;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .mascot[data-animation="success"] {
+      filter: drop-shadow(0 10px 18px rgba(101, 230, 172, .12));
+    }
+
+    .mascot[data-animation="error-intro"],
+    .mascot[data-animation="error-loop"] {
+      filter: drop-shadow(0 10px 18px rgba(255, 91, 115, .12));
+    }
+
+    .task-card {
+      position: relative;
+      padding: 15px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .task-list { display: grid; gap: 10px; }
+
+    .task-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+      margin-top: 12px;
+      padding-top: 11px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .task-top {
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr) 42px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .task-icon {
+      width: 50px;
+      height: 50px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #34343c;
+      border-radius: 16px;
+      color: var(--pink);
+      background: #09090c;
+    }
+
+    .task-icon svg { width: 27px; height: 27px; }
+    .task-copy { min-width: 0; }
+
+    .task-title {
+      overflow: hidden;
+      color: #e6e2e7;
+      font-size: 14px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .task-status { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .task-status strong { color: var(--pink); font-weight: 800; }
+
+    .cancel-button {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 13px;
+      background: var(--surface-3);
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .cancel-button svg { width: 19px; height: 19px; }
+    .cancel-button:active { color: var(--danger); transform: scale(.92); }
+
+    .progress-track {
+      height: 9px;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #24242a;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 64%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--pink-hot), var(--pink-soft), var(--pink-hot));
+      background-size: 200% 100%;
+      box-shadow: 0 0 13px rgba(255, 73, 158, .5);
+      animation: progress-shine 1.4s linear infinite;
+      transition: width .5s ease;
+    }
+
+    @keyframes progress-shine { to { background-position: -200% 0; } }
+
+    .progress-fill.indeterminate {
+      width: 34% !important;
+      animation: progress-indeterminate 1.15s ease-in-out infinite;
+    }
+
+    .task-card.completed .progress-fill { background: var(--success); box-shadow: 0 0 13px rgba(101, 230, 172, .34); }
+    .task-card.error .progress-fill { background: var(--danger); box-shadow: 0 0 13px rgba(255, 91, 115, .34); }
+    .task-card.cancelled .progress-fill { background: #ffad5b; box-shadow: none; }
+    .task-status.state-success { color: var(--success); font-weight: 800; }
+    .task-status.state-error { color: var(--danger); font-weight: 800; }
+    .task-status.state-cancelled { color: #ffad5b; font-weight: 800; }
+
+    @keyframes progress-indeterminate {
+      0% { transform: translateX(-125%); }
+      100% { transform: translateX(390%); }
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin-top: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 17px;
+      background: #050507;
+    }
+
+    .stat {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      align-items: center;
+      gap: 9px;
+      padding: 12px;
+    }
+
+    .stat + .stat { border-left: 1px solid var(--line); }
+    .stat svg { width: 27px; height: 27px; color: var(--pink); }
+    .stat span { display: block; color: var(--muted-2); font-size: 10px; }
+    .stat strong { display: block; margin-top: 2px; color: #d8d4da; font-size: 13px; white-space: nowrap; }
+
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 5px 2px 18px;
+    }
+
+    .section-header h1 { margin: 0; font-size: 25px; letter-spacing: -.03em; }
+    .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .count { color: var(--pink); font-size: 13px; font-weight: 750; }
+
+    .list { display: grid; gap: 10px; }
+
+    .file-card, .history-card, .setting-row {
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface);
+    }
+
+    .file-card { padding: 14px; }
+    .file-main { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+    .file-thumb { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; color: var(--pink); background: var(--surface-3); }
+    .file-thumb svg { width: 24px; height: 24px; }
+    .file-title { overflow: hidden; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .file-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line-soft); }
+
+    .soft-button {
+      min-height: 37px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .soft-button svg { width: 17px; height: 17px; }
+    .soft-button:active { color: var(--pink); border-color: rgba(255, 92, 168, .45); transform: scale(.96); }
+
+    .history-card {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 11px;
+      padding: 13px;
+    }
+
+    .history-state {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      background: var(--surface-3);
+    }
+
+    .history-state.success { color: var(--success); }
+    .history-state.error { color: var(--danger); }
+    .history-state.cancelled { color: #ffad5b; }
+    .history-state.queued { color: var(--pink); }
+    .history-state svg { width: 21px; height: 21px; }
+    .history-title { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .history-meta { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .history-size { color: #d8d4da; font-size: 12px; font-weight: 700; }
+
+    .empty-state {
+      padding: 42px 18px;
+      border: 1px dashed var(--line);
+      border-radius: 20px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      z-index: 30;
+      bottom: 0;
+      left: 50%;
+      width: min(100%, 520px);
+      min-height: calc(var(--nav-height) + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: start;
+      padding: 9px 10px calc(10px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--line-soft);
+      background: rgba(3, 3, 4, .96);
+      backdrop-filter: blur(20px);
+      transform: translateX(-50%);
+    }
+
+    .nav-button {
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      border: 0;
+      border-radius: 17px;
+      background: transparent;
+      color: var(--muted-2);
+      font-size: 11px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: color .2s ease, background .2s ease;
+    }
+
+    .nav-button svg { width: 25px; height: 25px; }
+    .nav-button.active { color: var(--pink); background: rgba(255, 92, 168, .075); }
+    .nav-button:active { transform: scale(.96); }
+
+    .overlay {
+      position: fixed;
+      z-index: 60;
+      inset: 0;
+      display: none;
+      background: rgba(0, 0, 0, .76);
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      transition: opacity .25s ease;
+    }
+
+    .overlay.show { display: block; opacity: 1; }
+
+    .sheet {
+      position: fixed;
+      z-index: 70;
+      left: 50%;
+      bottom: 0;
+      width: min(100%, 520px);
+      max-height: min(78vh, 720px);
+      padding: 11px 18px calc(22px + env(safe-area-inset-bottom));
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-bottom: 0;
+      border-radius: 28px 28px 0 0;
+      background: #09090c;
+      box-shadow: 0 -24px 70px rgba(0, 0, 0, .72);
+      transform: translate(-50%, 105%);
+      transition: transform .32s cubic-bezier(.2, .88, .22, 1);
+    }
+
+    .sheet.show { transform: translate(-50%, 0); }
+    .sheet-handle { width: 42px; height: 4px; margin: 0 auto 17px; border-radius: 99px; background: #34343b; }
+    .sheet h2 { margin: 0 0 15px; font-size: 20px; letter-spacing: -.02em; }
+
+    .option {
+      width: 100%;
+      min-height: 62px;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 24px;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 7px;
+      border: 0;
+      border-bottom: 1px solid var(--line-soft);
+      background: transparent;
+      color: var(--white);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .option:last-child { border-bottom: 0; }
+    .option-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: var(--pink); background: var(--surface-3); }
+    .option-icon svg { width: 23px; height: 23px; }
+    .option-main { display: block; font-size: 14px; font-weight: 700; }
+    .option-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .radio { width: 21px; height: 21px; display: grid; place-items: center; border: 2px solid #424149; border-radius: 50%; }
+    .option.selected .radio { border-color: var(--pink); }
+    .option.selected .radio::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 11px var(--pink-glow); }
+
+    .settings-list { display: grid; gap: 9px; }
+    .setting-row { min-height: 62px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 13px; }
+    .setting-row > svg { width: 22px; height: 22px; color: var(--pink); }
+    .setting-name { font-size: 13px; font-weight: 700; }
+    .setting-sub { margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .setting-value { max-width: 148px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .update-button { width: 100%; min-height: 50px; margin-top: 10px; border: 1px solid rgba(255, 92, 168, .32); border-radius: 16px; background: rgba(255, 92, 168, .09); color: var(--pink); font-weight: 750; cursor: pointer; }
+    .update-button:disabled { cursor: wait; opacity: .58; }
+    .update-status { min-height: 18px; margin-top: 10px; color: var(--muted); font-size: 11px; text-align: center; }
+    .update-status.error { color: var(--danger); }
+
+    .demo-block { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line); }
+    .demo-block h3 { margin: 0 0 5px; font-size: 14px; }
+    .demo-block p { margin: 0 0 11px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .demo-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .demo-controls button { min-height: 41px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-3); color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; }
+    .demo-controls button:active { color: var(--pink); border-color: var(--pink); }
+
+    .toast {
+      position: fixed;
+      z-index: 100;
+      left: 50%;
+      bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom));
+      max-width: calc(100% - 40px);
+      padding: 11px 15px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #151519;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .5);
+      color: var(--white);
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 12px);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 360px) {
+      .topbar, .content { padding-left: 13px; padding-right: 13px; }
+      .brand { font-size: 17px; gap: 6px; }
+      .select-control { grid-template-columns: 24px minmax(0, 1fr) 15px; gap: 7px; padding: 0 10px; }
+      .selected-value { font-size: 13px; }
+      .stat { padding: 10px 8px; grid-template-columns: 28px minmax(0, 1fr); gap: 6px; }
+      .stat svg { width: 23px; height: 23px; }
+      .file-actions .soft-button span { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.6 13.4a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.6 1.6m1.6 4.1a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.6-1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 3v18M17 3v18M3 8h4m10 0h4M3 16h4m10 0h4"/></symbol>
+    <symbol id="i-hd" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="M7 9v6m0-3h4m0-3v6m3-6h2a3 3 0 0 1 0 6h-2Z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5h6l2 2h10v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 18v2h14v-2"/></symbol>
+    <symbol id="i-speed" viewBox="0 0 24 24"><path d="M4.2 18a9 9 0 1 1 15.6 0M12 12l4-4"/><circle cx="12" cy="12" r="1.4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2.8h8l4 4V21H6Z"/><path d="M14 2.8V7h4M9 12h6m-6 4h6"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z"/></symbol>
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 4h16v16H4Z"/><path d="M8 4v16m8-16v16M4 9h4m8 0h4M4 15h4m8 0h4"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 5v5h5M5.2 16.7A8 8 0 1 0 4 10"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 6 9 6-9 6Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 3h6l1 4H8Zm-3 4 1 14h10l1-14M10 11v6m4-6v6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4ZM12 9v5m0 3h.01"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-1l2 5M18 16a7 7 0 0 1-12 1l-2-5"/></symbol>
+  </svg>
 
-<!-- ═══ HEADER ═══ -->
-<div class="header"><span class="header-title">Загрузчик</span><button class="settings-btn" onclick="openSheet('settings')" style="background:none;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:4px">⚙️</button></div>
+  <div class="app">
+    <header class="topbar">
+      <div></div>
+      <div class="brand" aria-label="Видео-загрузчик"><span class="spark">✦</span><span>Видео-загрузчик</span><span class="spark">✦</span></div>
+      <button class="icon-button" type="button" aria-label="Настройки" data-open-sheet="settings"><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-settings"/></svg></button>
+    </header>
 
-<!-- ═══ ГЛАВНАЯ ═══ -->
-<div class="page active" id="pageHome">
+    <main class="content">
+      <section class="page active" id="page-home" data-page="home">
+        <label class="field-label" for="url-input">Ссылка на видео</label>
+        <div class="url-field">
+          <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-link"/></svg>
+          <input id="url-input" type="text" value="" placeholder="Вставьте ссылки через запятую..." autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+          <button class="icon-button clear-button" id="clear-url" type="button" aria-label="Очистить ссылку"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="history-popover" id="url-history"></div>
 
-  <div class="history-wrap">
-    <div class="input-wrap"><span>🔗</span><input type="url" id="urlInput" placeholder="Вставьте ссылки через запятую..." autocomplete="off" autocorrect="off" autocapitalize="none" enterkeyhint="go"></div>
-    <div class="history-list" id="historyList"></div>
+        <div class="selectors">
+          <button class="select-field" type="button" data-open-sheet="format">
+            <span class="select-label">Формат</span>
+            <span class="select-control">
+              <svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-video"/></svg>
+              <span class="selected-value" id="format-value">MP4</span>
+              <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-chevron"/></svg>
+            </span>
+          </button>
+          <button class="select-field" type="button" data-open-sheet="quality">
+            <span class="select-label">Качество</span>
+            <span class="select-control">
+              <svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg>
+              <span class="selected-value" id="quality-value">1080p</span>
+              <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-chevron"/></svg>
+            </span>
+          </button>
+        </div>
+
+        <div class="utility-row">
+          <button class="folder-button" id="folder-button" type="button"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-folder"/></svg><span>Downloads/YTDow</span></button>
+          <button class="size-button" id="size-button" type="button" aria-label="Узнать размер файла">
+            <svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-scale"/></svg><span class="size-text" id="size-text">Узнать размер</span>
+          </button>
+        </div>
+
+        <button class="download-button" id="download-button" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-download"/></svg><span>Скачать</span></button>
+
+        <div class="mascot-stage hidden" id="mascot-stage" aria-live="polite">
+          <div class="mascot-glow"></div>
+          <img class="mascot" id="mascot" data-animation="idle" src="" alt="">
+        </div>
+
+        <div class="task-list" id="task-list"><div class="empty-state">Нет активных загрузок</div></div>
+      </section>
+
+      <section class="page" id="page-library" data-page="library">
+        <div class="section-header"><div><h1>Библиотека</h1><p>Скачанные файлы на устройстве</p></div><span class="count" id="library-count">0 файлов</span></div>
+        <div class="list" id="library-list"><div class="empty-state">Скачанные файлы появятся здесь</div></div>
+      </section>
+
+      <section class="page" id="page-history" data-page="history">
+        <div class="section-header"><div><h1>История</h1><p>Все попытки загрузки</p></div><span class="count" id="history-count">0 записей</span></div>
+        <div class="list" id="history-list"><div class="empty-state">История загрузок пока пуста</div></div>
+      </section>
+    </main>
   </div>
 
-  <div class="options-row">
-    <button class="pill" onclick="openSheet('format')"><span>Формат:</span><b id="format-text">MP4</b></button>
-    <button class="pill" onclick="openSheet('quality')"><span>Качество:</span><b id="quality-text">Лучшее</b></button>
-    <button class="pill folder" onclick="changePath()">📁</button>
-    <button class="size-trigger" onclick="checkSize()">
-      <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
-      <span id="sizeText">Узнать размер</span>
-    </button>
-  </div>
+  <nav class="bottom-nav" aria-label="Основная навигация">
+    <button class="nav-button active" type="button" data-tab="home"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-home"/></svg><span>Главная</span></button>
+    <button class="nav-button" type="button" data-tab="library"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-library"/></svg><span>Библиотека</span></button>
+    <button class="nav-button" type="button" data-tab="history"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-history"/></svg><span>История</span></button>
+  </nav>
 
-  <button class="dl-btn" onclick="startDownload()">⬇ Скачать</button>
+  <div class="overlay" id="overlay"></div>
 
-  <h2>Загрузки</h2>
-  <div id="taskList"><div class="empty">Нет активных загрузок</div></div>
-</div>
+  <section class="sheet" id="sheet-format" aria-modal="true" role="dialog" aria-label="Выбор формата">
+    <div class="sheet-handle"></div><h2>Выберите формат</h2>
+    <button class="option selected" type="button" data-choice="format" data-value="mp4" data-label="MP4"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-video"/></svg></span><span><span class="option-main">MP4</span><span class="option-sub">Видео с аудиодорожкой</span></span><span class="radio"></span></button>
+    <button class="option" type="button" data-choice="format" data-value="mp3" data-label="MP3"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-file"/></svg></span><span><span class="option-main">MP3</span><span class="option-sub">Только аудио · 192 kbps</span></span><span class="radio"></span></button>
+  </section>
 
-<!-- ═══ БИБЛИОТЕКА ═══ -->
-<div class="page" id="pageLibrary">
-  <h2 onclick="toggleSection('libraryDownloads')">📥 Скачанное <span id="libArrow" style="font-size:10px">▼</span></h2>
-  <div id="libraryDownloads"><div class="empty">Пусто</div></div>
-</div>
+  <section class="sheet" id="sheet-quality" aria-modal="true" role="dialog" aria-label="Выбор качества">
+    <div class="sheet-handle"></div><h2>Выберите качество</h2>
+    <button class="option" type="button" data-choice="quality" data-value="best" data-label="Лучшее"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">Лучшее</span><span class="option-sub">Максимально доступное качество</span></span><span class="radio"></span></button>
+    <button class="option" type="button" data-choice="quality" data-value="2160p" data-label="2160p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">2160p (4K)</span><span class="option-sub">Ultra HD</span></span><span class="radio"></span></button>
+    <button class="option" type="button" data-choice="quality" data-value="1440p" data-label="1440p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">1440p</span><span class="option-sub">Quad HD</span></span><span class="radio"></span></button>
+    <button class="option selected" type="button" data-choice="quality" data-value="1080p" data-label="1080p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">1080p (Full HD)</span><span class="option-sub">Оптимальное качество</span></span><span class="radio"></span></button>
+    <button class="option" type="button" data-choice="quality" data-value="720p" data-label="720p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">720p (HD)</span><span class="option-sub">Экономия места</span></span><span class="radio"></span></button>
+    <button class="option" type="button" data-choice="quality" data-value="480p" data-label="480p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">480p</span><span class="option-sub">Минимальный размер</span></span><span class="radio"></span></button>
+  </section>
 
-<!-- ═══ BOTTOM SHEETS ═══ -->
-<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+  <section class="sheet" id="sheet-settings" aria-modal="true" role="dialog" aria-label="Настройки">
+    <div class="sheet-handle"></div><h2>Настройки</h2>
+    <div class="settings-list">
+      <div class="setting-row"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-folder"/></svg><div><div class="setting-name">Папка сохранения</div><div class="setting-sub">Место для новых файлов</div></div><span class="setting-value" id="settings-path">Downloads/YTDow</span></div>
+      <div class="setting-row"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-video"/></svg><div><div class="setting-name">Текущий формат</div><div class="setting-sub">Применяется к новой загрузке</div></div><span class="setting-value" id="settings-format">MP4</span></div>
+      <div class="setting-row"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-refresh"/></svg><div><div class="setting-name">Версия приложения</div><div class="setting-sub">Android</div></div><span class="setting-value" id="app-version">—</span></div>
+    </div>
+    <button class="update-button" id="update-button" type="button">Проверить обновление</button>
+    <div class="update-status" id="update-status"></div>
+  </section>
 
-<div class="sheet" id="sheet-format">
-  <div class="sheet-handle"></div>
-  <div class="sheet-title">Выберите формат</div>
-  <div class="sheet-opt sel" onclick="pickFormat('mp4','MP4',this)"><div class="left"><div class="icon-box vid"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div><div class="txt"><span class="main">MP4</span><span class="sub">Видео</span></div></div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickFormat('mp3','MP3',this)"><div class="left"><div class="icon-box aud"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div><div class="txt"><span class="main">MP3</span><span class="sub">Аудио</span></div></div><div class="radio"></div></div>
-</div>
+  <div class="toast" id="toast" role="status"></div>
 
-<div class="sheet" id="sheet-quality">
-  <div class="sheet-handle"></div>
-  <div class="sheet-title">Выберите качество</div>
-  <div class="sheet-opt sel" onclick="pickQuality('best','Лучшее',this)"><div class="left"><span style="color:var(--accent);font-weight:700;margin-right:4px">✓</span>Лучшее (Best)</div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickQuality('2160p','2160p',this)"><div class="left">2160p (4K)</div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickQuality('1440p','1440p',this)"><div class="left">1440p</div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickQuality('1080p','1080p',this)"><div class="left">1080p (Full HD)</div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickQuality('720p','720p',this)"><div class="left">720p (HD)</div><div class="radio"></div></div>
-  <div class="sheet-opt" onclick="pickQuality('480p','480p',this)"><div class="left">480p</div><div class="radio"></div></div>
-</div>
+  <script src="app.js"></script>
+  <script type="application/x-ytdow-prototype" id="prototype-reference">
+    const state = {
+      tab: 'home',
+      format: 'mp4',
+      quality: '1080p',
+      taskState: 'downloading',
+      progress: 64,
+      progressTimer: null,
+      animationTimer: null,
+      animationNonce: 0,
+    };
 
-<!-- ═══ SETTINGS SHEET ═══ -->
-<div class="sheet" id="sheet-settings">
-  <div class="sheet-handle"></div>
-  <div class="sheet-title">Настройки</div>
-  <div class="settings-card">
-    <div class="settings-row"><span>Папка сохранения</span><span class="val" id="settingsPath"></span></div>
-    <div class="settings-row"><span>Формат по умолчанию</span><span class="val">mp4</span></div>
-    <div class="settings-row"><span>Версия приложения</span><span class="val" id="settingsVersion">2.1.0</span></div>
-  </div>
-  <button class="update-btn" onclick="checkUpdate()">🔄 Проверить обновление</button>
-  <div id="updateStatus"></div>
-  <div class="version-info">YTDow v2.1.0 · Android</div>
-</div>
+    const $ = (selector, scope = document) => scope.querySelector(selector);
+    const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+    const mascotAnimations = {
+      downloading: { src: 'assets/animations/dance.webp', durationMs: 2000, loop: true },
+      success: { src: 'assets/animations/success.webp', durationMs: 2417, loop: false },
+      errorIntro: { src: 'assets/animations/error-intro.webp', durationMs: 1083, loop: false },
+      errorLoop: { src: 'assets/animations/error-loop.webp', durationMs: 1083, loop: true },
+    };
 
-<!-- ═══ HIDDEN SELECTS (for bridge compat) ═══ -->
-<select id="formatSelect" style="display:none"><option value="mp4">mp4</option><option value="mp3">mp3</option></select>
-<select id="qualitySelect" style="display:none"><option value="best">best</option><option value="2160p">2160p</option><option value="1440p">1440p</option><option value="1080p">1080p</option><option value="720p">720p</option><option value="480p">480p</option></select>
-<select id="langSelect" style="display:none"><option value="">🎙 Авто</option></select>
+    function playMascotAnimation(name, onComplete) {
+      const mascot = $('#mascot');
+      const animation = mascotAnimations[name];
+      const playId = ++state.animationNonce;
+      clearTimeout(state.animationTimer);
+      mascot.dataset.animation = name.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+      mascot.dataset.animationReady = 'false';
 
-<!-- ═══ BOTTOM NAV ═══ -->
-<div class="bottom-nav">
-  <button class="tab-btn active" onclick="switchTab('home')" id="tabHome">
-    <svg viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Главная
-  </button>
-  <button class="tab-btn" onclick="switchTab('library')" id="tabLibrary">
-    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="8" y1="2" x2="8" y2="22"></line><line x1="16" y1="2" x2="16" y2="22"></line><line x1="2" y1="8" x2="22" y2="8"></line><line x1="2" y1="16" x2="22" y2="16"></line></svg>Библиотека
-  </button>
-</div>
+      mascot.onload = () => {
+        if (playId !== state.animationNonce) return;
+        mascot.dataset.animationReady = 'true';
+        if (!animation.loop && onComplete) {
+          state.animationTimer = setTimeout(() => {
+            if (playId === state.animationNonce) onComplete();
+          }, animation.durationMs);
+        }
+      };
+      mascot.onerror = () => {
+        if (playId !== state.animationNonce) return;
+        mascot.dataset.animationReady = 'error';
+        showToast('Не удалось загрузить анимацию персонажа');
+      };
 
-<div id="toast" class="toast"></div>
-
-<!-- ═══ ALL JS — PRESERVED ═══ -->
-<script>
-let tasks={},downloadDir='',history=[],downloadHistory=[];
-
-document.addEventListener('DOMContentLoaded',()=>{
-  downloadDir=Android.getDownloadDir();updatePathLabel();
-  try{history=JSON.parse(Android.getHistory())}catch(e){history=[]}
-  try{downloadHistory=JSON.parse(Android.getDownloadHistory()).reverse()}catch(e){downloadHistory=[]}
-  renderLibrary();
-  const inp=document.getElementById('urlInput');
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter')startDownload()});
-  inp.addEventListener('input',onUrlInput);
-  inp.addEventListener('focus',onUrlFocus);
-  inp.addEventListener('blur',()=>setTimeout(()=>document.getElementById('historyList').classList.remove('show'),200));
-});
-
-// ── Sheets ──
-function openSheet(type){
-  document.getElementById('overlay').classList.add('show');
-  document.getElementById('sheet-'+type).classList.add('show');
-}
-function closeSheet(){
-  document.getElementById('overlay').classList.remove('show');
-  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
-}
-function pickFormat(val,label,el){
-  document.getElementById('formatSelect').value=val;
-  document.getElementById('format-text').textContent=label;
-  document.querySelectorAll('#sheet-format .sheet-opt').forEach(o=>o.classList.remove('sel'));
-  el.classList.add('sel');
-  closeSheet();
-}
-function pickQuality(val,label,el){
-  document.getElementById('qualitySelect').value=val;
-  document.getElementById('quality-text').textContent=label;
-  document.querySelectorAll('#sheet-quality .sheet-opt').forEach(o=>o.classList.remove('sel'));
-  el.classList.add('sel');
-  closeSheet();
-}
-
-function switchTab(tab){
-  document.getElementById('pageHome').classList.toggle('active',tab==='home');
-  document.getElementById('pageLibrary').classList.toggle('active',tab==='library');
-  document.getElementById('tabHome').classList.toggle('active',tab==='home');
-  document.getElementById('tabLibrary').classList.toggle('active',tab==='library');
-  if(tab==='library'){refreshHistory();renderLibrary()}
-}
-
-function onUrlFocus(){if(history.length)showHistoryDropdown()}
-function onUrlInput(){if(!document.getElementById('urlInput').value)showHistoryDropdown();else document.getElementById('historyList').classList.remove('show')}
-function showHistoryDropdown(){
-  const h=document.getElementById('historyList');
-  if(!history.length){h.classList.remove('show');return}
-  h.innerHTML=history.slice().reverse().map(u=>'<div class="history-item" onclick="selectHistory(\''+esc(u)+'\')">'+esc(u)+'</div>').join('');
-  h.classList.add('show');
-}
-function selectHistory(url){document.getElementById('urlInput').value=url;document.getElementById('historyList').classList.remove('show')}
-function updatePathLabel(){var sp=document.getElementById('settingsPath');if(sp)sp.textContent=shortenPath(downloadDir)}
-
-function startDownload(){
-  const raw=document.getElementById('urlInput').value.trim();
-  if(!raw)return toast('Вставьте ссылку');
-  const urls=raw.split(',').map(u=>u.trim()).filter(u=>u.startsWith('http'));
-  if(!urls.length)return toast('Нет ссылок');
-  const fmt=document.getElementById('formatSelect').value;
-  const qual=document.getElementById('qualitySelect').value;
-  const lang=document.getElementById('langSelect').value;
-  urls.forEach(url=>{
-    const nativeTaskId=Android.startDownload(url,fmt,qual,lang);
-    tasks[nativeTaskId]={id:nativeTaskId,url,fmt,qual,lang,title:'Ожидание...',status:'queued',percent:0,speed:'',eta:'',filePath:''};
-  });
-  document.getElementById('urlInput').value='';
-  renderTasks();
-}
-function checkSize(){
-  const raw=document.getElementById('urlInput').value.trim();
-  if(!raw)return toast('Вставьте ссылку');
-  const url=raw.split(',').map(u=>u.trim()).find(u=>u.startsWith('http'));
-  if(!url)return toast('Нет ссылки');
-  const fmt=document.getElementById('formatSelect').value;
-  const qual=document.getElementById('qualitySelect').value;
-  const lang=document.getElementById('langSelect').value;
-  var st=document.getElementById('sizeText');if(st)st.textContent='Подсчёт...';
-  Android.checkSize(url,fmt,qual,lang);
-}
-function sizeTargetLabel(data){
-  const fmtLabel=data.format==='mp3'?'mp3 (аудио)':data.format;
-  const qualityLabel=data.quality?data.quality:'best';
-  return fmtLabel+' / '+qualityLabel;
-}
-function onSizeResult(payload){
-  try{
-    const data=JSON.parse(payload);
-    const target=sizeTargetLabel(data);
-    var st=document.getElementById('sizeText');
-    if(!data.sizeBytes){if(st)st.textContent='—';return}
-    const mb=(data.sizeBytes/1024/1024).toFixed(1);
-    if(st)st.textContent='~ '+mb+' MB';
-  }catch(e){var st2=document.getElementById('sizeText');if(st2)st2.textContent='—'}
-}
-function onSizeError(message){var st=document.getElementById('sizeText');if(st)st.textContent='—'}
-function cancelDownload(tid){Android.cancelDownload(tid);tasks[tid].status='cancelled';renderTasks()}
-function changePath(){toast('Загрузки публикуются в Downloads/YTDow')}
-
-function onProgress(taskId,pct,spd,eta){
-  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'downloading',percent:pct,speed:spd||'',eta:eta||'',title:'',url:'',fmt:'',qual:'',filePath:''};
-  tasks[taskId].status='downloading';
-  tasks[taskId].percent=pct;
-  if(spd)tasks[taskId].speed=spd;
-  if(eta)tasks[taskId].eta=eta;
-  renderTasks();
-}
-function onComplete(taskId,fp){
-  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'completed',percent:100,filePath:fp||'',title:'',url:'',fmt:'',qual:'',speed:'',eta:''};
-  tasks[taskId].status='completed';
-  tasks[taskId].percent=100;
-  if(fp)tasks[taskId].filePath=fp;
-  renderTasks();
-  refreshHistory();
-  renderLibrary();
-}
-function onError(taskId,err){
-  if(!tasks[taskId])tasks[taskId]={id:taskId,status:'error',error:err||'',title:'',url:'',fmt:'',qual:'',percent:0,speed:'',eta:'',filePath:''};
-  tasks[taskId].status='error';
-  tasks[taskId].error=err||'';
-  renderTasks();
-}
-
-function refreshHistory(){try{downloadHistory=JSON.parse(Android.getDownloadHistory()).reverse()}catch(e){downloadHistory=[]}}
-function onHistoryChanged(){refreshHistory();renderTasks();renderLibrary()}
-
-function renderTasks(){
-  const c=document.getElementById('taskList'),ids=Object.keys(tasks);
-  if(!ids.length){c.innerHTML='<div class="empty">Нет активных загрузок</div>';return}
-  let h='';ids.reverse().forEach(id=>{
-    const t=tasks[id];
-    const fmtLabel=t.fmt==='mp3'?'mp3':(t.fmt||'mp4');
-    const qualLabel=t.qual||'best';
-    h+='<div class="task-card">';
-    if(t.status==='downloading'){
-      const pct=t.percent||0, ind=pct<0;
-      h+='<div class="task-header">';
-      h+='<div class="task-icon-wrap '+(t.fmt==='mp3'?'audio':'video')+'"><svg viewBox="0 0 24 24">'+(t.fmt==='mp3'?'<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>':'<polygon points="5 3 19 12 5 21 5 3"></polygon>')+'</svg></div>';
-      h+='<div class="task-info"><div class="task-title">'+esc(t.title||'Загрузка...')+'</div><div class="task-meta">'+fmtLabel+' · '+qualLabel+'</div></div>';
-      h+='<div class="cancel-circle" onclick="cancelDownload(\''+id+'\')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>';
-      h+='</div>';
-      h+='<div class="task-status-row"><span class="pct">'+(ind?'Загрузка...':pct+'%')+'</span><span class="eta">'+(t.speed?t.speed+' ':'')+(t.eta?'~ '+t.eta:'')+'</span></div>';
-      h+='<div class="track"><div class="fill'+(ind?' indeterminate':'')+'" style="width:'+(ind?100:pct)+'%"></div></div>';
-    }else if(t.status==='completed'){
-      h+='<div class="task-header">';
-      h+='<div class="task-icon-wrap '+(t.fmt==='mp3'?'audio':'video')+'"><svg viewBox="0 0 24 24">'+(t.fmt==='mp3'?'<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>':'<polygon points="5 3 19 12 5 21 5 3"></polygon>')+'</svg></div>';
-      h+='<div class="task-info"><div class="task-title">'+esc(t.title||t.url||'')+'</div><div class="task-meta">'+fmtLabel+' · '+qualLabel+'</div></div>';
-      h+='</div>';
-      h+='<div class="task-status-done">✓ Готово</div>';
-      h+='<div class="track"><div class="fill" style="width:100%"></div></div>';
-      h+='<div class="task-actions"><button class="act" onclick="openFile(\''+id+'\')">▶ Открыть</button><button class="act" onclick="openTaskFolder(\''+id+'\')">📂 Папка</button></div>';
-    }else if(t.status==='cancelled'){
-      h+='<div class="task-title">'+esc(t.title||t.url||'')+'</div><div class="task-cancelled">✗ Отменено</div>';
-    }else if(t.status==='error'){
-      h+='<div class="task-title">'+esc(t.title||t.url||'')+'</div><div class="task-error">⚠ '+esc(t.error||'Ошибка')+'</div><div class="task-actions"><button class="act" onclick="retryDownload(\''+id+'\')">🔄 Повтор</button></div>';
-    }else{
-      h+='<div class="task-title">'+esc(t.title||t.url||'')+'</div><div style="color:var(--t2);font-size:13px">В очереди...</div>';
+      mascot.removeAttribute('src');
+      void mascot.offsetWidth;
+      const separator = animation.src.includes('?') ? '&' : '?';
+      mascot.src = animation.src.startsWith('blob:')
+        ? animation.src
+        : `${animation.src}${separator}play=${playId}`;
     }
-    h+='</div>';
-  });
-  c.innerHTML=h;
-}
 
-function renderLibrary(){
-  const c=document.getElementById('libraryDownloads');
-  if(!downloadHistory.length){c.innerHTML='<div class="empty">Пусто</div>';return}
-  let h='';downloadHistory.forEach((e,i)=>{
-    let entry=e;
-    if(typeof e==='string'){try{entry=JSON.parse(e)}catch(_){}}
-    if(!entry||!entry.url)return;
-    h+='<div class="lib-item"><div class="lib-header"><div class="lib-thumb">▶️</div><div class="lib-info"><div class="lib-title">'+esc(entry.title||entry.url)+'</div><div class="lib-meta"><span>'+(entry.format||'mp4')+'</span>·<span>'+(entry.quality||'best')+'</span>·<span>'+timeAgo(entry.time)+'</span></div></div></div><div class="lib-actions">';
-    if(entry.filePath)h+='<button class="act" onclick="openHistoryFile('+i+')">▶ Открыть</button>';
-    if(entry.filePath)h+='<button class="act" onclick="openHistoryFolder('+i+')">📂 Папка</button>';
-    h+='<button class="act" onclick="deleteHistoryFile('+i+')">🗑 Удалить</button>';
-    h+='</div></div>';
-  });
-  c.innerHTML=h;
-}
+    function showToast(message) {
+      const toast = $('#toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
 
-function checkUpdate(){document.getElementById('updateStatus').innerHTML='Проверка...';Android.checkUpdate()}
-function onUpdateResult(resultStr){
-  try{
-    const r=JSON.parse(resultStr);
-    if(r.error){document.getElementById('updateStatus').textContent='⚠ '+r.error;return}
-    const current=r.current||'1.0.0',latest=r.latest||'?',downloadUrl=r.downloadUrl||'';
-    if(latest===current||!latest||latest==='?'){document.getElementById('updateStatus').innerHTML='✓ У вас последняя версия ('+current+')'}
-    else if(downloadUrl){document.getElementById('updateStatus').innerHTML='🆕 Доступна v'+latest+' <button class="act" style="background:var(--accent);color:#fff;border-radius:6px;padding:4px 10px" onclick="downloadUpdate(\''+esc(downloadUrl)+'\')">⬇ Скачать</button>'}
-    else{document.getElementById('updateStatus').textContent='🆕 Доступна v'+latest+' (нет APK)'}
-  }catch(e){document.getElementById('updateStatus').textContent='⚠ Ошибка'}
-}
-function downloadUpdate(url){document.getElementById('updateStatus').innerHTML='Скачивание... <span id="dlPct">0%</span>';Android.downloadUpdate(url)}
-function onUpdateProgress(pct){const el=document.getElementById('dlPct');if(el)el.textContent=pct+'%'}
+    function switchTab(tab) {
+      state.tab = tab;
+      $$('.page').forEach(page => page.classList.toggle('active', page.dataset.page === tab));
+      $$('.nav-button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
-function historyEntry(i){let e=downloadHistory[i];if(typeof e==='string'){try{e=JSON.parse(e)}catch(_){return null}}return e||null}
-function openFile(tid){const t=tasks[tid];if(t&&t.filePath)Android.openFile(t.filePath);else toast('Файл не найден')}
-function openTaskFolder(tid){const t=tasks[tid];if(t&&t.filePath)Android.openFolder(folderFromPath(t.filePath));else Android.openFolder(downloadDir)}
-function openHistoryFile(i){const e=historyEntry(i);if(e&&e.filePath)Android.openFile(e.filePath);else toast('Файл не найден')}
-function openHistoryFolder(i){const e=historyEntry(i);if(e&&e.filePath)Android.openFolder(folderFromPath(e.filePath));else toast('Папка не найдена')}
-function deleteHistoryFile(i){const e=historyEntry(i);if(!e||!e.filePath)return;if(confirm('Удалить файл?')){Android.deleteFile(e.filePath);toast('Файл удалён');deleteFromTasks(e.filePath);refreshHistory();renderTasks();renderLibrary()}}
-function deleteFromTasks(filePath){Object.keys(tasks).forEach(id=>{if(tasks[id]&&tasks[id].filePath===filePath)delete tasks[id]})}
-function folderFromPath(filePath){const idx=filePath.lastIndexOf('/');return idx>0?filePath.slice(0,idx):downloadDir}
-function retryDownload(tid){const t=tasks[tid];if(!t)return;const nativeTaskId=Android.startDownload(t.url,t.fmt,t.qual,t.lang||'');tasks[nativeTaskId]={...t,id:nativeTaskId,status:'queued',percent:0,error:null};delete tasks[tid];renderTasks()}
-function esc(s){const d=document.createElement('div');d.textContent=(s||'');return d.innerHTML}
-function shortenPath(p){const parts=p.split('/');return parts.length>3?'.../'+parts.slice(-2).join('/'):p}
-function toggleSection(id){const el=document.getElementById(id),arrow=document.getElementById('libArrow');if(el.style.display==='none'){el.style.display='block';arrow.textContent='▼'}else{el.style.display='none';arrow.textContent='▶'}}
-function deleteFile(filePath){if(!filePath)return;if(confirm('Удалить файл?')){Android.deleteFile(filePath);toast('Файл удалён');deleteFromTasks(filePath);refreshHistory();renderTasks();renderLibrary()}}
-function timeAgo(ts){if(!ts)return'';const s=(Date.now()-ts)/1000;if(s<60)return'только что';if(s<3600)return Math.floor(s/60)+'м';if(s<86400)return Math.floor(s/3600)+'ч';return Math.floor(s/86400)+'д'}
-function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2500)}
-</script>
+    function openSheet(name) {
+      closeSheets(false);
+      $('#overlay').classList.add('show');
+      $('#sheet-' + name).classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSheets(restoreScroll = true) {
+      $('#overlay').classList.remove('show');
+      $$('.sheet').forEach(sheet => sheet.classList.remove('show'));
+      if (restoreScroll) document.body.style.overflow = '';
+    }
+
+    function setChoice(type, value, label, button) {
+      state[type] = value;
+      $('#' + type + '-value').textContent = label;
+      $$(`[data-choice="${type}"]`).forEach(option => option.classList.toggle('selected', option === button));
+      closeSheets();
+      showToast(`${type === 'format' ? 'Формат' : 'Качество'}: ${label}`);
+    }
+
+    function setTaskState(next, options = {}) {
+      state.taskState = next;
+      clearTimeout(state.animationTimer);
+      const stage = $('#mascot-stage');
+      const mascot = $('#mascot');
+      const taskCard = $('#task-card');
+      const cancelButton = $('#cancel-button');
+      stage.classList.remove('hidden');
+      mascot.className = 'mascot';
+      taskCard.hidden = false;
+
+      if (next === 'downloading') {
+        playMascotAnimation('downloading');
+        mascot.alt = 'Персонаж плавно танцует во время загрузки';
+        $('#task-title').textContent = 'Видео загружается';
+        $('#task-status').innerHTML = `Загрузка… <strong id="progress-label">${state.progress}%</strong>`;
+        $('#progress-fill').style.width = `${state.progress}%`;
+        $('#progress-fill').style.background = '';
+        $('#speed-value').textContent = '5,2 МБ/с';
+        cancelButton.hidden = false;
+      }
+
+      if (next === 'success') {
+        clearInterval(state.progressTimer);
+        state.progress = 100;
+        mascot.alt = 'Персонаж показывает победный жест и отправляет воздушный поцелуй';
+        $('#task-title').textContent = 'Загрузка завершена';
+        $('#task-status').innerHTML = '<span style="color:var(--success);font-weight:800">Готово</span>';
+        $('#progress-fill').style.width = '100%';
+        $('#speed-value').textContent = 'Завершено';
+        cancelButton.hidden = true;
+        playMascotAnimation('success', () => {
+          if (state.taskState === 'success' && options.autoHide !== false) {
+            stage.classList.add('hidden');
+          }
+        });
+      }
+
+      if (next === 'error') {
+        clearInterval(state.progressTimer);
+        mascot.alt = 'Расстроенный персонаж плачет из-за ошибки загрузки';
+        $('#task-title').textContent = 'Не удалось загрузить видео';
+        $('#task-status').innerHTML = '<span style="color:var(--danger);font-weight:800">Ошибка доступа</span>';
+        $('#progress-fill').style.width = `${Math.max(8, state.progress)}%`;
+        $('#progress-fill').style.background = 'var(--danger)';
+        $('#speed-value').textContent = 'Остановлено';
+        cancelButton.hidden = true;
+        playMascotAnimation('errorIntro', () => {
+          if (state.taskState === 'error') playMascotAnimation('errorLoop');
+        });
+      }
+    }
+
+    function startDownload() {
+      const url = $('#url-input').value.trim();
+      if (!url) {
+        showToast('Вставьте ссылку на видео');
+        $('#url-input').focus();
+        return;
+      }
+      clearInterval(state.progressTimer);
+      state.progress = 4;
+      setTaskState('downloading');
+      showToast('Демо-загрузка началась');
+      state.progressTimer = setInterval(() => {
+        const step = Math.max(1, Math.round((100 - state.progress) / 16));
+        state.progress = Math.min(100, state.progress + step);
+        const label = $('#progress-label');
+        if (label) label.textContent = `${state.progress}%`;
+        $('#progress-fill').style.width = `${state.progress}%`;
+        $('#speed-value').textContent = `${(4.7 + Math.random() * 1.1).toFixed(1).replace('.', ',')} МБ/с`;
+        if (state.progress >= 100) setTaskState('success');
+      }, 460);
+    }
+
+    function checkSize() {
+      const button = $('#size-button');
+      if (!$('#url-input').value.trim()) return showToast('Сначала вставьте ссылку');
+      button.classList.remove('resolved');
+      button.classList.add('loading');
+      button.setAttribute('aria-label', 'Рассчитываем размер файла');
+      setTimeout(() => {
+        button.classList.remove('loading');
+        button.classList.add('resolved');
+        button.setAttribute('aria-label', 'Размер файла 639,8 мегабайта');
+      }, 1050);
+    }
+
+    $$('[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+    $$('[data-open-sheet]').forEach(button => button.addEventListener('click', () => openSheet(button.dataset.openSheet)));
+    $$('[data-choice]').forEach(button => button.addEventListener('click', () => setChoice(button.dataset.choice, button.dataset.value, button.dataset.label, button)));
+    $$('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast)));
+    $$('[data-demo]').forEach(button => button.addEventListener('click', () => { closeSheets(); switchTab('home'); setTaskState(button.dataset.demo); }));
+
+    $('#overlay').addEventListener('click', () => closeSheets());
+    $('#download-button').addEventListener('click', startDownload);
+    $('#size-button').addEventListener('click', checkSize);
+    $('#folder-button').addEventListener('click', () => showToast('Папка: Downloads/YTDow'));
+    $('#cancel-button').addEventListener('click', () => { clearInterval(state.progressTimer); clearTimeout(state.animationTimer); state.animationNonce += 1; $('#mascot-stage').classList.add('hidden'); $('#task-card').hidden = true; showToast('Загрузка отменена'); });
+    $('#clear-url').addEventListener('click', () => { $('#url-input').value = ''; $('#url-input').focus(); });
+    $('#url-input').addEventListener('focus', () => $('#url-history').classList.add('show'));
+    $('#url-input').addEventListener('blur', () => setTimeout(() => $('#url-history').classList.remove('show'), 130));
+    $$('.history-suggestion').forEach(button => button.addEventListener('click', () => { $('#url-input').value = button.textContent.trim(); $('#url-history').classList.remove('show'); }));
+    $('#update-button').addEventListener('click', event => { event.currentTarget.textContent = 'Проверяем…'; setTimeout(() => { event.currentTarget.textContent = 'Установлена последняя версия'; event.currentTarget.style.color = 'var(--success)'; }, 950); });
+
+    if ($('#mascot').getAttribute('src')) playMascotAnimation('downloading');
+    window.YTDowPrototype = { setTaskState, switchTab, openSheet, playMascotAnimation };
+  </script>
 </body>
 </html>

@@ -13,8 +13,8 @@ android {
         applicationId = "com.hermes.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "2.1.0"
+        versionCode = 5
+        versionName = "2.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk { abiFilters += listOf("arm64-v8a") } // arm64 only — сокращает APK на 40%. Для x86 эмуляторов используйте arm-образ.
@@ -29,6 +29,7 @@ android {
 
     packaging { jniLibs { useLegacyPackaging = true } }
     testOptions { unitTests.isReturnDefaultValues = true }
+    buildFeatures { buildConfig = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
