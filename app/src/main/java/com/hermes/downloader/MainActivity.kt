@@ -70,19 +70,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
 
-        // Auto-update yt-dlp once per week
-        val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
-        if (System.currentTimeMillis() - lastUpdate > 7 * 24 * 3600 * 1000L) {
-            thread(name = "ytdlp-update") {
-                try {
-                    val ytdlp = com.yausername.youtubedl_android.YoutubeDL.getInstance()
-                    ytdlp.init(this@MainActivity)
-                    ytdlp.updateYoutubeDL(this@MainActivity, com.yausername.youtubedl_android.YoutubeDL.UpdateChannel._STABLE)
-                    prefs.edit().putLong("ytdlp_last_update", System.currentTimeMillis()).apply()
-                } catch (_: Exception) {}
-            }
-        }
-
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -98,6 +85,7 @@ class MainActivity : AppCompatActivity() {
         requestNotifyPerm()
         requestLegacyStoragePerm()
         webView.loadUrl("file:///android_asset/index.html")
+        scheduleYtDlpUpdate()
     }
 
     override fun onStart() { super.onStart(); register() }
@@ -138,6 +126,24 @@ class MainActivity : AppCompatActivity() {
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1002)
         }
+    }
+
+    private fun scheduleYtDlpUpdate() {
+        val lastUpdate = prefs.getLong("ytdlp_last_update", 0)
+        if (System.currentTimeMillis() - lastUpdate <= YTDLP_UPDATE_INTERVAL_MS) return
+        mainHandler.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            thread(name = "ytdlp-update") {
+                try {
+                    val ytdlp = YoutubeDL.getInstance()
+                    ytdlp.init(this@MainActivity)
+                    ytdlp.updateYoutubeDL(this@MainActivity, YoutubeDL.UpdateChannel._STABLE)
+                    prefs.edit().putLong("ytdlp_last_update", System.currentTimeMillis()).apply()
+                } catch (error: Throwable) {
+                    Log.w("YTDow", "yt-dlp auto-update skipped", error)
+                }
+            }
+        }, YTDLP_UPDATE_DELAY_MS)
     }
 
     private fun register() {
@@ -489,6 +495,8 @@ class MainActivity : AppCompatActivity() {
             "https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest"
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val MAX_UPDATE_BYTES = 300L * 1024L * 1024L
+        private const val YTDLP_UPDATE_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
+        private const val YTDLP_UPDATE_DELAY_MS = 3000L
     }
 
 }

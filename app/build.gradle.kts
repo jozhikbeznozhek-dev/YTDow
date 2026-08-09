@@ -13,8 +13,8 @@ android {
         applicationId = "com.jozhikbeznozhek.ytdow"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.2.1"
+        versionCode = 7
+        versionName = "2.2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk { abiFilters += listOf("arm64-v8a") } // arm64 only — сокращает APK на 40%. Для x86 эмуляторов используйте arm-образ.
@@ -22,7 +22,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
