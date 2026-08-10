@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+      - name: Install Android API 36
+        run: yes | sdkmanager "platforms;android-36" "build-tools;35.0.0" >/dev/null
+      - name: Test, lint and build minified release
+        run: ./gradlew --no-daemon --dependency-verification strict test lint assembleRelease cyclonedxBom
+      - name: Validate CycloneDX schemas
+        run: |
+          curl --fail --silent --show-error --location \
+            --output "$RUNNER_TEMP/cyclonedx" \
+            https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.33.1/cyclonedx-linux-x64
+          echo "bfc8b2538da86fe239bc53658bbb63c1c8c510a293c1e6891aa5bea5d3c58746  $RUNNER_TEMP/cyclonedx" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/cyclonedx"
+          "$RUNNER_TEMP/cyclonedx" validate --input-file build/reports/cyclonedx/bom.json
+          "$RUNNER_TEMP/cyclonedx" validate --input-file build/reports/cyclonedx/bom.xml
+      - name: Scan shipped Android and Python runtime dependencies
+        uses: google/osv-scanner-action/osv-scanner-action@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
+        with:
+          scan-args: |-
+            -L build/reports/cyclonedx/bom.json
+            -L desktop/requirements.lock.txt
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-reports
+          if-no-files-found: warn
+          path: |
+            app/build/reports/
+            data/build/reports/
+            build/reports/cyclonedx/
+
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: desktop/requirements*.lock.txt
+      - name: Install Qt runtime
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check --require-hashes -r desktop/requirements-dev.lock.txt
+      - name: Test desktop
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: desktop
+        run: |
+          python -m compileall -q desktop/hermes_downloader desktop/main.py
+          python -m pytest -q desktop/tests
+          python -m pip_audit
+
+  desktop-macos:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: desktop/requirements*.lock.txt
+      - name: Install hash-locked dependencies
+        run: python -m pip install --disable-pip-version-check --require-hashes -r desktop/requirements-dev.lock.txt
+      - name: Test, audit and build on native macOS
+        env:
+          QT_QPA_PLATFORM: minimal
+          PYTHONPATH: desktop
+        run: |
+          python -m compileall -q desktop/hermes_downloader desktop/main.py
+          python -m pytest -q desktop/tests
+          python -m pip_audit
+          cd desktop
+          python -m PyInstaller --clean --noconfirm YTDow.spec
+          test -f dist/YTDow.app/Contents/MacOS/YTDow
+          test -f dist/YTDow.app/Contents/Resources/icon.icns
+          codesign --verify --deep --strict dist/YTDow.app
+          dist/YTDow.app/Contents/MacOS/YTDow >smoke.log 2>&1 &
+          app_pid=$!
+          sleep 5
+          kill -0 "$app_pid"
+          kill "$app_pid"
+          wait "$app_pid" || true
+          test ! -s smoke.log
+          ditto -c -k --sequesterRsrc --keepParent dist/YTDow.app dist/YTDow-v2.3.0-macOS.zip
+          shasum -a 256 dist/YTDow-v2.3.0-macOS.zip > dist/YTDow-v2.3.0-macOS.zip.sha256
+      - name: Upload native macOS candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ytdow-macos-candidate
+          if-no-files-found: error
+          path: |
+            desktop/dist/YTDow-v2.3.0-macOS.zip
+            desktop/dist/YTDow-v2.3.0-macOS.zip.sha256

@@ -13,11 +13,14 @@ local.properties
 *.aab
 *.jks
 *.keystore
+*.p12
+/.signing/
 __pycache__/
 **/__pycache__/
 .hermes/
 apps_checklist.md
 desktop/venv/
+/.venv/
 desktop/build/
 desktop/dist/
 desktop/*.spec

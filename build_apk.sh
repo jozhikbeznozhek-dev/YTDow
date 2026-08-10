@@ -2,7 +2,7 @@
 # YTDow — сборка APK для Android
 # Требования: Android SDK + JDK 17 + Kotlin
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "=== YTDow — Android Build ==="
@@ -26,14 +26,14 @@ echo "✓ ANDROID_HOME: $ANDROID_HOME"
 # 2. Gradle wrapper
 if [ ! -x "$PROJECT_DIR/gradlew" ]; then
     echo "❌ gradlew не найден или не исполняемый."
-    echo "   Создай wrapper: gradle wrapper --gradle-version 8.5"
+    echo "   Создай wrapper: gradle wrapper --gradle-version 8.13"
     exit 1
 fi
 
 # 3. Сборка
 echo ""
 echo "=== Сборка APK ==="
-"$PROJECT_DIR/gradlew" assembleDebug
+"$PROJECT_DIR/gradlew" --no-daemon --dependency-verification strict assembleDebug
 
 APK_PATH="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
 if [ -f "$APK_PATH" ]; then
