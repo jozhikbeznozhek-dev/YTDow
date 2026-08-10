@@ -1,6 +1,7 @@
 """Менеджер задач загрузки — Singleton с очередью."""
 
 import queue
+import os
 import threading
 from typing import Optional
 from hermes_downloader.models.download_task import DownloadTask, TaskStatus
@@ -33,6 +34,7 @@ class TaskManager:
         self._task_widgets: dict[str, object] = {}  # TaskWidget refs
         self._threadpool = threadpool
         self._active_count = 0
+        self._cancelled_task_ids: set[str] = set()
         self._save_path = "~/Downloads/Скачанное Ютуб"
         self._proxy: Optional[str] = None
 
@@ -70,16 +72,14 @@ class TaskManager:
         task = self._active_tasks.get(task_id)
         worker = self._active_workers.get(task_id)
         if worker:
-            worker.cancel()                        # реальная остановка
+            worker.cancel()
+            return
+        self._cancelled_task_ids.add(task_id)
         if task:
             task.status = TaskStatus.CANCELLED
-            widget = self._task_widgets.get(task_id)
-            if widget:
-                widget.update_status(TaskStatus.CANCELLED)
-            self._active_tasks.pop(task_id, None)
-            self._active_workers.pop(task_id, None)
-            self._active_count = max(0, self._active_count - 1)
-            self._process_queue()
+        widget = self._task_widgets.get(task_id)
+        if widget:
+            widget.update_status(TaskStatus.CANCELLED)
 
     def _process_queue(self):
         """Запускает задачи из очереди, пока есть свободные слоты."""
@@ -89,7 +89,8 @@ class TaskManager:
             except queue.Empty:
                 break
 
-            if task.status == TaskStatus.CANCELLED:
+            if task.status == TaskStatus.CANCELLED or task.id in self._cancelled_task_ids:
+                self._cancelled_task_ids.discard(task.id)
                 continue
 
             task.status = TaskStatus.DOWNLOADING
@@ -105,11 +106,17 @@ class TaskManager:
             worker.signals.progress.connect(self._on_progress)
             worker.signals.finished.connect(self._on_finished)
             worker.signals.error.connect(self._on_error)
+            worker.signals.cancelled.connect(self._on_cancelled)
 
             self._active_workers[task.id] = worker
 
             if self._threadpool:
                 self._threadpool.start(worker)
+                widget = self._task_widgets.get(task.id)
+                if widget:
+                    widget.update_status(TaskStatus.DOWNLOADING)
+            else:
+                self._on_error(task.id, "Пул фоновых задач не настроен")
 
     def _on_progress(self, task_id: str, percent: float,
                      speed: str, eta: str, size: str):
@@ -133,7 +140,20 @@ class TaskManager:
         widget = self._task_widgets.get(task_id)
         if widget:
             widget.file_path = file_path
+            if file_path:
+                widget.title_label.setText(os.path.splitext(os.path.basename(file_path))[0])
             widget.update_status(TaskStatus.COMPLETED)
+        self._process_queue()
+
+    def _on_cancelled(self, task_id: str):
+        self._active_workers.pop(task_id, None)
+        task = self._active_tasks.pop(task_id, None)
+        if task:
+            task.status = TaskStatus.CANCELLED
+        self._active_count = max(0, self._active_count - 1)
+        widget = self._task_widgets.get(task_id)
+        if widget:
+            widget.update_status(TaskStatus.CANCELLED)
         self._process_queue()
 
     def _on_error(self, task_id: str, error_msg: str):

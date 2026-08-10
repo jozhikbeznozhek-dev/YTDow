@@ -1,7 +1,9 @@
 import yt_dlp
 import os
 import threading
+from datetime import datetime
 from hermes_downloader.models.download_task import DownloadTask, TaskStatus
+from hermes_downloader.core.history_store import append_history
 from hermes_downloader.utils.ffmpeg_checker import get_ffmpeg_path
 from PySide6.QtCore import QObject, Signal, QRunnable, Slot
 
@@ -15,6 +17,7 @@ class DownloadWorkerSignals(QObject):
     finished = Signal(str, str)      # task_id, file_path
     error = Signal(str, str)        # task_id, error_message
     progress = Signal(str, float, str, str, str)  # id, %, speed, eta, size
+    cancelled = Signal(str)
 
 
 class DownloadWorker(QRunnable):
@@ -25,12 +28,16 @@ class DownloadWorker(QRunnable):
         self.proxy = proxy
         self.signals = DownloadWorkerSignals()
         self._cancelled = threading.Event()
+        self._temporary_paths: set[str] = set()
 
     def cancel(self):
         """Флаг отмены — хук прогресса выбросит исключение."""
         self._cancelled.set()
 
     def progress_hook(self, d):
+        for key in ("filename", "tmpfilename"):
+            if path := d.get(key):
+                self._temporary_paths.add(path)
         if self._cancelled.is_set():
             raise DownloadCancelledError("Загрузка отменена пользователем")
         if d['status'] == 'downloading':
@@ -52,8 +59,9 @@ class DownloadWorker(QRunnable):
     @Slot()
     def run(self):
         try:
+            os.makedirs(self.save_path, exist_ok=True)
             ydl_opts = {
-                'outtmpl': os.path.join(self.save_path, '%(title)s.%(ext)s'),
+                'outtmpl': os.path.join(self.save_path, '%(title)s [%(id)s].%(ext)s'),
                 'progress_hooks': [self.progress_hook],
                 'quiet': True,
                 'no_warnings': True,
@@ -87,55 +95,63 @@ class DownloadWorker(QRunnable):
             if self.proxy:
                 ydl_opts['proxy'] = self.proxy
 
-            file_path = ""
-            title = ""
-
-            # Перехватываем stdout yt-dlp для ловли названия и пути
-            import io, sys
-            old_out = sys.stdout
-            captured = io.StringIO()
-            sys.stdout = captured
-
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([self.task.url])
+                info = ydl.extract_info(self.task.url, download=True)
+                file_path = self._resolve_output_path(ydl, info)
+                title = str(info.get("title") or self.task.url)
 
-            sys.stdout = old_out
-            output_lines = captured.getvalue().splitlines()
+            if self._cancelled.is_set():
+                raise DownloadCancelledError("Загрузка отменена пользователем")
+            if not file_path or not os.path.isfile(file_path):
+                raise FileNotFoundError("yt-dlp не вернул итоговый файл")
 
-            # Ищем путь [ExtractAudio] или [download] Destination:
-            for line in output_lines:
-                if line.startswith("/"):
-                    file_path = line.strip()
-                elif not title and not line.startswith("[") and not line.startswith("%"):
-                    title = line.strip()
-
-            # Если путь не нашли — ищем в папке последний созданный файл
-            if not file_path or not os.path.exists(file_path):
-                files = [os.path.join(self.save_path, f) for f in os.listdir(self.save_path) if not f.startswith('.')]
-                if files:
-                    file_path = max(files, key=os.path.getctime)
-
-            # Сохраняем в историю
-            try:
-                import json
-                history_path = os.path.expanduser("~/.ytdow_history.json")
-                history = []
-                if os.path.exists(history_path):
-                    history = json.loads(open(history_path).read())
-                entry = {
-                    "url": self.task.url, "title": title or self.task.url,
-                    "format": self.task.format, "quality": self.task.quality,
-                    "filePath": file_path, "time": __import__('datetime').datetime.now().strftime("%d.%m.%Y %H:%M")
-                }
-                history.append(entry)
-                history = history[-50:]
-                with open(history_path, 'w') as f:
-                    json.dump(history, f, indent=2, ensure_ascii=False)
-            except: pass
-
-            self.signals.finished.emit(self.task.id, file_path if file_path else self.task.id)
+            append_history({
+                "url": self.task.url,
+                "title": title,
+                "format": self.task.format,
+                "quality": self.task.quality,
+                "filePath": file_path,
+                "time": datetime.now().strftime("%d.%m.%Y %H:%M"),
+            })
+            self.signals.finished.emit(self.task.id, file_path)
 
         except DownloadCancelledError:
-            pass
+            self._cleanup_partials()
+            self.signals.cancelled.emit(self.task.id)
         except Exception as e:
+            self._cleanup_partials()
             self.signals.error.emit(self.task.id, str(e))
+
+    def _resolve_output_path(self, ydl, info: dict) -> str:
+        candidates: list[str] = []
+        for download in info.get("requested_downloads") or []:
+            if path := download.get("filepath"):
+                candidates.append(path)
+        for key in ("filepath", "_filename"):
+            if path := info.get(key):
+                candidates.append(path)
+        candidates.append(ydl.prepare_filename(info))
+
+        if self.task.format == "mp3":
+            candidates.extend(f"{os.path.splitext(path)[0]}.mp3" for path in list(candidates))
+        elif self.task.format == "mp4":
+            candidates.extend(f"{os.path.splitext(path)[0]}.mp4" for path in list(candidates))
+
+        save_root = os.path.realpath(self.save_path)
+        for candidate in candidates:
+            resolved = os.path.realpath(candidate)
+            if os.path.commonpath((save_root, resolved)) == save_root and os.path.isfile(resolved):
+                return resolved
+        return ""
+
+    def _cleanup_partials(self) -> None:
+        save_root = os.path.realpath(self.save_path)
+        for path in self._temporary_paths:
+            resolved = os.path.realpath(path)
+            if os.path.commonpath((save_root, resolved)) != save_root:
+                continue
+            if resolved.endswith((".part", ".ytdl")):
+                try:
+                    os.remove(resolved)
+                except FileNotFoundError:
+                    pass

@@ -1,23 +1,29 @@
 """Основное окно YTDow."""
 
-import os, json, re, threading
+import os, json, re, subprocess, threading
 from PySide6.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout,
     QWidget, QComboBox, QPushButton, QScrollArea, QLabel, QMessageBox,
     QFileDialog, QTabWidget, QFrame
 )
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt, QObject, QThreadPool, Signal
 from PySide6.QtGui import QIcon
 
 from hermes_downloader.models.download_task import DownloadTask, TaskStatus
 from hermes_downloader.core.task_manager import TaskManager
+from hermes_downloader.core.history_store import load_history, remove_history
+from hermes_downloader.core.url_policy import normalize_download_url
+from hermes_downloader import __version__
 from hermes_downloader.core.parser import parse_video, VideoUnavailableError, ParseError
 from hermes_downloader.ui.widgets.url_bar import UrlBar
 from hermes_downloader.ui.widgets.task_widget import TaskWidget
 from hermes_downloader.ui.dialogs.settings_dialog import SettingsDialog
 from hermes_downloader.utils.ffmpeg_checker import is_ffmpeg_available, get_ffmpeg_install_hint
 
-HISTORY_FILE = os.path.expanduser("~/.ytdow_history.json")
+class MainWindowSignals(QObject):
+    parse_finished = Signal(object, bool)
+    parse_failed = Signal(str)
+    update_finished = Signal(str, bool)
 
 
 class MainWindow(QMainWindow):
@@ -36,6 +42,11 @@ class MainWindow(QMainWindow):
 
         self.task_manager = TaskManager(self.threadpool)
         self.task_manager.save_path = os.path.expanduser("~/Downloads/YTDow")
+        self.background_signals = MainWindowSignals(self)
+        self.background_signals.parse_finished.connect(self._on_parse_finished)
+        self.background_signals.parse_failed.connect(self._on_parse_failed)
+        self.background_signals.update_finished.connect(self._on_update_finished)
+        self._task_specs: dict[str, DownloadTask] = {}
 
         self._setup_ui()
         self._load_styles()
@@ -117,7 +128,7 @@ class MainWindow(QMainWindow):
         self.update_btn.clicked.connect(self._check_update); sfl.addWidget(self.update_btn)
         self.update_status = QLabel("")
         self.update_status.setStyleSheet("font-size:12px;color:#6d6d6d"); sfl.addWidget(self.update_status)
-        sfl.addWidget(QLabel("YTDow v1.1.0 · macOS"))
+        sfl.addWidget(QLabel(f"YTDow v{__version__} · macOS"))
         lib_l.addWidget(sf)
         self.tabs.addTab(self.lib_tab, "📚 Библиотека")
 
@@ -129,41 +140,50 @@ class MainWindow(QMainWindow):
         try:
             if info.format_sizes:
                 sizes = "\n" + " | ".join(f"{h}: {s}" for h, s in sorted(info.format_sizes.items(), key=lambda x: -int(x[0][:-1])))
-        except: pass
+        except (TypeError, ValueError):
+            sizes = ""
         self.preview_label.setText(f"🎬 {info.title}\n⏱ {info.duration} · 📦 {info.filesize or '?'}{sizes}")
         self.preview_label.setVisible(True)
 
     def _parse_thread(self, url, is_calc=False):
         try:
             info = parse_video(url, proxy=self.task_manager.proxy)
-            self.url_input.setEnabled(True)
-            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
             if info:
-                if not is_calc: self.url_input.setText(info.title)
-                self.quality_combo.clear()
-                if info.formats: self.quality_combo.addItems(info.formats)
-                else: self.quality_combo.addItems(["best","2160p","1440p","1080p","720p","480p","360p"])
-                self._show_preview(info)
+                self.background_signals.parse_finished.emit(info, is_calc)
         except VideoUnavailableError:
-            self.url_input.setEnabled(True)
-            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
-            QMessageBox.warning(self, "Ошибка", "Видео недоступно.")
+            self.background_signals.parse_failed.emit("Видео недоступно.")
         except ParseError as e:
-            self.url_input.setEnabled(True)
-            self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
-            QMessageBox.warning(self, "Ошибка парсинга", str(e))
+            self.background_signals.parse_failed.emit(str(e))
         except Exception as e:
-            self.url_input.setEnabled(True)
-            self.preview_label.setText(f"⚠ Ошибка: {e}")
+            self.background_signals.parse_failed.emit(f"Ошибка: {e}")
+
+    def _on_parse_finished(self, info, _is_calc=False):
+        self.url_input.setEnabled(True)
+        self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
+        self.quality_combo.clear()
+        self.quality_combo.addItems(
+            info.formats or ["best", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
+        )
+        self._show_preview(info)
+
+    def _on_parse_failed(self, message: str):
+        self.url_input.setEnabled(True)
+        self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
+        self.preview_label.setText(f"⚠ {message}")
+        self.preview_label.setVisible(True)
 
     def _on_url_submitted(self, url: str):
+        normalized = normalize_download_url(url)
+        if normalized is None:
+            QMessageBox.warning(self, "Ошибка", "Вставьте корректную http(s)-ссылку")
+            return
         self.url_input.setEnabled(False)
         self.url_input.setPlaceholderText("Анализирую...")
-        threading.Thread(target=lambda: self._parse_thread(url), daemon=True).start()
+        threading.Thread(target=lambda: self._parse_thread(normalized), daemon=True).start()
 
     def _calc_size(self):
-        url = self.url_input.text().strip()
-        if not url or not url.startswith("http"):
+        url = normalize_download_url(self.url_input.text())
+        if url is None:
             QMessageBox.warning(self, "Ошибка", "Вставьте ссылку"); return
         self.preview_label.setText("Расчёт..."); self.preview_label.setVisible(True)
         threading.Thread(target=lambda: self._parse_thread(url, is_calc=True), daemon=True).start()
@@ -175,25 +195,39 @@ class MainWindow(QMainWindow):
     def _start_download(self):
         raw = self.url_input.text().strip()
         if not raw: return
-        urls = [u.strip() for u in raw.split(",") if u.strip().startswith("http")]
+        urls = [normalized for value in raw.split(",")
+                if (normalized := normalize_download_url(value)) is not None]
         if not urls:
             QMessageBox.warning(self, "Ошибка", "Нет корректных ссылок"); return
         fmt = self.format_combo.currentText()
         qual = self.quality_combo.currentText()
         for url in urls:
-            url = re.sub(r'[&?]list=[^&]+', '', url)
-            url = re.sub(r'[&?]index=\d+', '', url).rstrip('?')
-            task = DownloadTask(url=url, quality=qual, format=fmt)
-            widget = TaskWidget(task.id, task.title)
-            widget.cancel_requested.connect(self.task_manager.cancel_task)
-            widget.open_requested.connect(self._open_file)
-            widget.delete_requested.connect(self._delete_file)
-            self.tasks_layout.addWidget(widget)
-            self.task_manager.register_widget(task.id, widget)
-            self.task_manager.add_task(task)
+            self._enqueue_task(DownloadTask(url=url, quality=qual, format=fmt))
         self.url_input.clear()
         self.url_input.setPlaceholderText("Вставьте ссылки через запятую...")
         self.preview_label.setVisible(False)
+
+    def _enqueue_task(self, task: DownloadTask):
+        widget = TaskWidget(task.id, task.title)
+        widget.cancel_requested.connect(self.task_manager.cancel_task)
+        widget.retry_requested.connect(self._retry_task)
+        widget.open_requested.connect(self._open_file)
+        widget.delete_requested.connect(self._delete_file)
+        self.tasks_layout.addWidget(widget)
+        self._task_specs[task.id] = task
+        self.task_manager.register_widget(task.id, widget)
+        self.task_manager.add_task(task)
+
+    def _retry_task(self, task_id: str):
+        previous = self._task_specs.get(task_id)
+        if previous is None:
+            QMessageBox.warning(self, "Ошибка", "Исходная задача не найдена")
+            return
+        self._enqueue_task(DownloadTask(
+            url=previous.url,
+            quality=previous.quality,
+            format=previous.format,
+        ))
 
     def _choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Папка", self.task_manager.save_path)
@@ -212,15 +246,8 @@ class MainWindow(QMainWindow):
 
     def _open_file(self, file_path: str):
         if file_path and os.path.exists(file_path):
-            import subprocess
-            # Открыть Finder с выделенным файлом → правый клик → Открыть в программе
-            applescript = f'''
-            tell application "Finder"
-                activate
-                reveal POSIX file "{file_path}"
-            end tell
-            '''
-            subprocess.Popen(["osascript", "-e", applescript])
+            command = ["open", file_path] if os.path.isdir(file_path) else ["open", "-R", file_path]
+            subprocess.Popen(command)
 
     def _delete_file(self, file_path: str):
         if not file_path:
@@ -242,11 +269,9 @@ class MainWindow(QMainWindow):
 
     def _remove_from_history(self, file_path: str):
         try:
-            if os.path.exists(HISTORY_FILE):
-                hist = json.loads(open(HISTORY_FILE).read())
-                hist = [e for e in hist if e.get('filePath') != file_path]
-                json.dump(hist, open(HISTORY_FILE, 'w'), indent=2, ensure_ascii=False)
-        except: pass
+            remove_history(file_path)
+        except OSError as error:
+            QMessageBox.warning(self, "Ошибка истории", str(error))
 
     def _on_tab_changed(self, idx):
         if idx == 1: self._load_history()
@@ -255,10 +280,7 @@ class MainWindow(QMainWindow):
         for i in reversed(range(self.lib_layout.count())):
             w = self.lib_layout.itemAt(i).widget()
             if w: w.setParent(None)
-        history = []
-        if os.path.exists(HISTORY_FILE):
-            try: history = json.loads(open(HISTORY_FILE).read())
-            except: pass
+        history = load_history()
         if not history:
             self.lib_layout.addWidget(QLabel("Пусто"))
             self.lib_layout.addStretch()
@@ -276,7 +298,7 @@ class MainWindow(QMainWindow):
                 ob.clicked.connect(lambda _, fp=entry['filePath']: self._open_file(fp))
                 br.addWidget(ob)
             fb = QPushButton("📁 Папка")
-            fb.clicked.connect(lambda _, fp=self.task_manager.save_path: self._open_file(fp))
+            fb.clicked.connect(lambda _, fp=entry.get('filePath', ''): self._open_file(os.path.dirname(fp)))
             br.addWidget(fb)
             db = QPushButton("🗑 Удалить")
             db.clicked.connect(lambda _, fp=entry.get('filePath',''): self._delete_file(fp))
@@ -295,12 +317,28 @@ class MainWindow(QMainWindow):
                     headers={"Accept": "application/json"})
                 data = json.loads(urllib.request.urlopen(req, timeout=5).read())
                 latest = data.get("tag_name", "").lstrip("v")
-                self.update_status.setText(
-                    f"🆕 Доступна v{latest}" if latest and latest != "1.1.0"
-                    else "✓ У вас последняя версия")
+                desktop_asset = next((asset for asset in data.get("assets", []) if
+                    asset.get("name", "").lower().endswith((".dmg", ".pkg", "-macos.zip"))), None)
+                if not latest or self._version_tuple(latest) <= self._version_tuple(__version__):
+                    message = "✓ У вас последняя версия"
+                elif desktop_asset:
+                    message = f"🆕 Доступна v{latest}: {desktop_asset.get('browser_download_url', '')}"
+                else:
+                    message = f"Доступна v{latest}, но сборка macOS ещё не опубликована"
+                self.background_signals.update_finished.emit(message, False)
             except Exception as e:
-                self.update_status.setText(f"⚠ Ошибка: {e}")
+                self.background_signals.update_finished.emit(f"⚠ Ошибка: {e}", True)
         threading.Thread(target=_upd, daemon=True).start()
+
+    def _on_update_finished(self, message: str, is_error: bool):
+        self.update_status.setText(message)
+        self.update_status.setStyleSheet(
+            f"font-size:12px;color:{'#ff5b73' if is_error else '#8a8790'}"
+        )
+
+    @staticmethod
+    def _version_tuple(value: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in re.findall(r"\d+", value))
 
     def _load_styles(self):
         import sys

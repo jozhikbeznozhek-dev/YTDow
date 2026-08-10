@@ -1,4 +1,4 @@
-# Hermes Downloader — Зависимости
-yt-dlp>=2024.07.25
-PySide6>=6.7.0
-pydantic>=2.0.0
+# Production runtime dependencies (reviewed 2026-08-09)
+yt-dlp==2026.7.4
+PySide6==6.11.1
+pydantic==2.13.4
