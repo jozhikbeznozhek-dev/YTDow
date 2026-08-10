@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>YTDow — приватность и лицензии</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #000; color: #f8f5f8; line-height: 1.55; }
+    main { width: min(100%, 620px); margin: auto; padding: 24px 20px 48px; }
+    button { min-height: 48px; padding: 0 18px; border: 1px solid #35313a; border-radius: 15px;
+      color: #ff8bc2; background: #0c0c0f; font: inherit; font-weight: 700; }
+    h1 { margin: 28px 0 8px; font-size: 28px; }
+    h2 { margin: 28px 0 8px; color: #ff8bc2; font-size: 18px; }
+    p, li { color: #c5c0c8; }
+    code { color: #ff8bc2; }
+    .meta { color: #9a969f; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <button id="back-button" type="button" aria-label="Вернуться в настройки">← Назад</button>
+    <h1>Приватность и лицензии</h1>
+    <p class="meta">YTDow 2.3.0 · обновлено 9 августа 2026</p>
+
+    <h2>Ваши данные</h2>
+    <p>YTDow не содержит аналитики, рекламы, аккаунтов или собственного облака.
+      История ссылок, загрузок и настройки остаются на устройстве и исключены из
+      резервной копии Android.</p>
+    <p>Для загрузки введенный URL передается сайту-источнику и его CDN. Проверка
+      обновлений обращается к GitHub. Файлы Android сохраняются в
+      <code>Downloads/YTDow</code>.</p>
+
+    <h2>Ответственное использование</h2>
+    <p>Загружайте только материалы, на которые у вас есть права. Пользователь
+      отвечает за соблюдение авторских прав, правил сайта и законодательства.</p>
+
+    <h2>Лицензия</h2>
+    <p>YTDow распространяется по GNU General Public License version 3 only.
+      Приложение использует youtubedl-android/FFmpeg (GPL-3.0), yt-dlp
+      (Unlicense), AndroidX, Kotlin, Hilt, Jackson и Apache Commons
+      (преимущественно Apache-2.0). Полный список конкретной сборки находится в
+      CycloneDX SBOM рядом с APK в GitHub Release.</p>
+  </main>
+  <script src="legal.js"></script>
+</body>
+</html>

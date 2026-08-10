@@ -21,6 +21,7 @@
     sizeTimer: null,
     lastSizeBytes: 0,
     lastSizeLabel: '',
+    sheetTrigger: null,
   };
 
   const mascotAnimations = {
@@ -185,7 +186,11 @@
   function switchTab(tab) {
     state.tab = tab;
     $$('.page').forEach(page => page.classList.toggle('active', page.dataset.page === tab));
-    $$('.nav-button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+    $$('.nav-button').forEach(button => {
+      const active = button.dataset.tab === tab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
     if (tab === 'library') refreshDownloads();
     if (tab === 'history') refreshAttempts();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -193,15 +198,57 @@
 
   function openSheet(name) {
     closeSheets(false);
+    state.sheetTrigger = document.activeElement;
+    const sheet = $(`#sheet-${name}`);
     $('#overlay').classList.add('show');
-    $(`#sheet-${name}`).classList.add('show');
+    sheet.classList.add('show');
+    sheet.setAttribute('aria-hidden', 'false');
+    $('.app').inert = true;
+    $('.bottom-nav').inert = true;
     document.body.style.overflow = 'hidden';
+    requestAnimationFrame(() => sheet.focus());
   }
 
-  function closeSheets(restoreScroll = true) {
+  function closeSheets(restoreFocus = true) {
     $('#overlay').classList.remove('show');
-    $$('.sheet').forEach(sheet => sheet.classList.remove('show'));
-    if (restoreScroll) document.body.style.overflow = '';
+    $$('.sheet').forEach(sheet => {
+      sheet.classList.remove('show');
+      sheet.setAttribute('aria-hidden', 'true');
+    });
+    $('.app').inert = false;
+    $('.bottom-nav').inert = false;
+    document.body.style.overflow = '';
+    if (restoreFocus && state.sheetTrigger instanceof HTMLElement) state.sheetTrigger.focus();
+    if (restoreFocus) state.sheetTrigger = null;
+  }
+
+  function closeActiveSheet() {
+    if (!$('.sheet.show')) return false;
+    closeSheets();
+    return true;
+  }
+
+  function handleDialogKeys(event) {
+    const sheet = $('.sheet.show');
+    if (!sheet) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSheets();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = $$('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])', sheet)
+      .filter(element => !element.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function resetSizeResult() {
@@ -217,7 +264,11 @@
   function setChoice(type, value, label, button) {
     state[type] = value;
     $(`#${type}-value`).textContent = label;
-    $$(`[data-choice="${type}"]`).forEach(option => option.classList.toggle('selected', option === button));
+    $$(`[data-choice="${type}"]`).forEach(option => {
+      const selected = option === button;
+      option.classList.toggle('selected', selected);
+      option.setAttribute('aria-checked', String(selected));
+    });
     if (type === 'format') $('#settings-format').textContent = label;
     resetSizeResult();
     closeSheets();
@@ -481,23 +532,31 @@
   }
 
   function openTaskFolder(taskId) {
-    const task = state.tasks[taskId];
-    callNative('openFolder', undefined, task?.filePath ? folderFromPath(task.filePath) : state.downloadDir);
+    callNative('openFolder', undefined, state.downloadDir);
   }
 
   function handleLibraryAction(action, index) {
     const entry = state.downloads[index];
     if (!entry) return;
     if (action === 'open') return callNative('openFile', undefined, entry.filePath);
-    if (action === 'folder') return callNative('openFolder', undefined, folderFromPath(entry.filePath));
+    if (action === 'folder') return callNative('openFolder', undefined, state.downloadDir);
     if (action === 'delete' && window.confirm('Удалить файл?')) {
       callNative('deleteFile', undefined, entry.filePath);
-      state.downloads.splice(index, 1);
-      renderLibrary();
-      renderHistory();
-      showToast('Файл удалён');
-      setTimeout(refreshDownloads, 250);
+      showToast('Удаляем файл…');
     }
+  }
+
+  function onDeleteResult(filePath, success) {
+    if (!success) {
+      showToast('Не удалось удалить файл');
+      return;
+    }
+    state.downloads = state.downloads.filter(entry => entry.filePath !== filePath);
+    refreshDownloads();
+    refreshAttempts();
+    renderLibrary();
+    renderHistory();
+    showToast('Файл удалён');
   }
 
   function onProgress(taskId, percent, speed) {
@@ -619,6 +678,10 @@
     refreshAttempts();
     renderTasks();
     setMascotState('idle');
+    $$('[data-choice]').forEach(button => {
+      button.setAttribute('role', 'radio');
+      button.setAttribute('aria-checked', String(button.classList.contains('selected')));
+    });
 
     Object.values(mascotAnimations).forEach(animation => {
       const image = new Image();
@@ -628,7 +691,9 @@
     $$('[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
     $$('[data-open-sheet]').forEach(button => button.addEventListener('click', () => openSheet(button.dataset.openSheet)));
     $$('[data-choice]').forEach(button => button.addEventListener('click', () => setChoice(button.dataset.choice, button.dataset.value, button.dataset.label, button)));
+    $$('[data-close-sheet]').forEach(button => button.addEventListener('click', () => closeSheets()));
     $('#overlay').addEventListener('click', () => closeSheets());
+    document.addEventListener('keydown', handleDialogKeys);
     $('#download-button').addEventListener('click', startDownload);
     $('#size-button').addEventListener('click', checkSize);
     $('#folder-button').addEventListener('click', () => callNative('openFolder', undefined, state.downloadDir));
@@ -659,6 +724,7 @@
       if (button) handleLibraryAction(button.dataset.libraryAction, Number(button.dataset.index));
     });
     $('#update-button').addEventListener('click', checkUpdate);
+    $('#legal-button').addEventListener('click', () => { window.location.href = 'legal.html'; });
   }
 
   Object.assign(window, {
@@ -668,10 +734,11 @@
     onSizeResult,
     onSizeError,
     onHistoryChanged,
+    onDeleteResult,
     onUpdateResult,
     onUpdateProgress,
     onUpdateStatus,
-    YTDowApp: { state, switchTab, setMascotState, refreshDownloads, refreshAttempts },
+    YTDowApp: { state, switchTab, setMascotState, refreshDownloads, refreshAttempts, closeActiveSheet },
   });
 
   document.addEventListener('DOMContentLoaded', initialize, { once: true });
