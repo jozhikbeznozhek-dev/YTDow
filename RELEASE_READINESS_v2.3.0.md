@@ -11,16 +11,19 @@
 desktop-тесты и Linux smoke build прошли, известные package vulnerabilities и
 секреты не обнаружены.
 
-Публикация запрещена четырьмя независимыми блокерами:
+Публикация запрещена тремя независимыми Android-блокерами:
 
 1. Ни одного физического Android-устройства не видно через `adb devices -l`.
-2. Production keystore и соответствующие release credentials не настроены ни
-   локально, ни в GitHub Actions Secrets.
-3. Все опубликованные APK v2.2.0–v2.2.3 подписаны одним Android Debug
-   сертификатом. Одновременно сохранить seamless update и выполнить требование
-   «не debug certificate» невозможно без решения о миграции signing identity.
-4. Для native FFmpeg payload из `youtubedl-android:0.18.1` не подтверждён
+2. Новый production keystore и соответствующие release credentials ещё не
+   созданы и не настроены ни локально, ни в GitHub Actions Secrets.
+3. Для native FFmpeg payload из `youtubedl-android:0.18.1` не подтверждён
    полный GPL Corresponding Source, воспроизводящий распространяемые бинарники.
+
+Решение по несовместимой подписи принято 2026-08-16: v2.3.0 начинает новую
+production signing identity без certificate rotation. Обновление поверх
+debug-signed v2.2.x не поддерживается; требуется чистая установка. Публичные
+файлы в `Downloads/YTDow` сохраняются, внутренняя история и настройки
+сбрасываются. Release notes и signing runbook фиксируют этот разрыв явно.
 
 Дополнительно официальный desktop target заявлен как macOS, однако нативная
 production-signed/notarized macOS-сборка в этой сессии не создавалась.
@@ -97,7 +100,7 @@ Qt runtime libraries для Linux были распакованы в изоли�
 | PyInstaller Linux smoke | PASS (не release target) | bundle стартует и жив 8 секунд; resources присутствуют |
 | Нативный macOS release | BLOCKED | Linux не является кросс-компилятором; native CI ещё не исполнялся, production signing/notarization отсутствуют |
 | Production Android signing | BLOCKED | `:app:checkProductionSigning` exit 1: production signing not configured |
-| Certificate continuity | BLOCKED / DECISION | предыдущий сертификат — Android Debug; см. ниже |
+| Certificate continuity | DECIDED / CLEAN INSTALL | новый production certificate без rotation; установка поверх 2.2.x намеренно не поддерживается |
 | Физическое Android-устройство | BLOCKED | `adb devices -l`: пустой список |
 | GPL Corresponding Source | BLOCKED | недостаточно данных для точного native FFmpeg build |
 | CI/workflow static review | PASS | `actionlint` exit 0; permissions минимизированы; Actions SHA-pinned |
@@ -250,10 +253,15 @@ Exit code: 1. Новый keystore не создавался.
   `e1a4446581ad68dee2fed4af2c15f8f80ceef54af3669c30743fdee6a3fbf17f`.
 
 APK v2.2.0, v2.2.1, v2.2.2 и v2.2.3 имеют тот же fingerprint. Подпись новым
-production certificate не обновится поверх этих APK; подпись старым debug
-certificate нарушит release policy. Требуется явное решение о миграции:
-clean-install break или формально одобренная и документированная стратегия
-certificate rotation, если она технически применима к установленной линии.
+production certificate не обновится поверх этих APK, а старый Debug key не
+принимается release policy. Принято решение о clean-install break: v2.3.0
+подписывается новым production key без lineage. Старый Debug key запрещено
+настраивать в production workflow.
+
+Пользовательская миграция описана в `release-notes/v2.3.0.md`: перед удалением
+2.2.x нужно проверить файлы в публичной папке `Downloads/YTDow`; после удаления
+история и настройки приложения не восстанавливаются. Порядок создания,
+резервирования и проверки нового ключа описан в `docs/ANDROID_SIGNING.md`.
 
 Release workflow теперь передаёт signing secrets только шагам восстановления,
 production build и fingerprint comparison. Сторонний OSV action запускается
@@ -276,7 +284,9 @@ production build и fingerprint comparison. Сторонний OSV action зап
 | Trusted WebView navigation and Back | BLOCKED |
 | External links and unexpected schemes | BLOCKED |
 | Navigation bypass attempts | BLOCKED |
-| Update v2.2.3 → production v2.3.0 with retained data | BLOCKED — device and certificate decision |
+| Install v2.3.0 over v2.2.3 | BLOCKED — устройство; ожидаемый результат: Android отклоняет несовместимую подпись |
+| Uninstall 2.2.3 → clean install v2.3.0 | BLOCKED — устройство и новый production-signed candidate |
+| Update production v2.3.0 → higher versionCode | BLOCKED — устройство и новый production-signed candidate |
 | Clean install, first run, permissions, main functions | BLOCKED |
 | Screenshots and redacted filtered logcat | BLOCKED |
 
@@ -358,14 +368,15 @@ dist, `.venv`, Python caches, IDE files, logs, local properties, signing files
 
 ## Следующие минимально необходимые действия
 
-1. Принять продуктовое/release решение о переходе с общего Android Debug
-   certificate на production identity и документировать влияние на обновление.
-2. Настроить уже одобренную production signing identity в защищённой локальной
-   или GitHub release-среде и проверить fingerprint; секретные значения не
-   передавать в issue, чат или отчёт.
+1. Создать новую production signing identity по `docs/ANDROID_SIGNING.md`,
+   сделать и проверить две раздельные зашифрованные резервные копии.
+2. Настроить новый ключ в защищённой локальной или GitHub release-среде и
+   проверить fingerprint; секретные значения не передавать в issue, чат или
+   отчёт. Старый Debug key не использовать.
 3. Подключить физическое arm64 Android-устройство и пройти всю device matrix на
-   production-signed candidate, включая update и clean install, с redacted
-   screenshots/logcat.
+   production-signed candidate, включая ожидаемый отказ обновления 2.2.3,
+   сохранность публичных файлов, clean install и последующее production update,
+   с redacted screenshots/logcat.
 4. Получить или воспроизводимо собрать полный GPL Corresponding Source для
    bundled native payload и приложить его/действительное written offer.
 5. Выполнить native macOS build, tests, signing, notarization и smoke на

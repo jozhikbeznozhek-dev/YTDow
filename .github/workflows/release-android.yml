@@ -34,7 +34,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           VERSION="${RELEASE_TAG#v}"
+          test -f "release-notes/$RELEASE_TAG.md"
           grep -F "versionName = \"$VERSION\"" app/build.gradle.kts
           ./gradlew --no-daemon --dependency-verification strict test lint assembleRelease cyclonedxBom
       - name: Validate CycloneDX schemas
@@ -106,4 +108,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes
+        run: |
+          gh release create "$RELEASE_TAG" release/* \
+            --verify-tag \
+            --title "YTDow $RELEASE_TAG" \
+            --notes-file "release-notes/$RELEASE_TAG.md"

@@ -20,4 +20,7 @@ The release workflow requires Android artifacts to be production-signed,
 checked with `apksigner`, and accompanied by SHA-256 checksums, CycloneDX SBOM
 files, and GitHub build provenance. The in-app updater accepts HTTPS GitHub
 release URLs and installs only an APK whose signer exactly matches the
-currently installed application.
+currently installed application. Android 2.3.0 intentionally starts a new
+production signing identity; debug-signed 2.2.x installations require a clean
+install. The 2.2.x Debug key must never be configured in the production release
+workflow.

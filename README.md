@@ -56,6 +56,21 @@ export YTDOW_KEY_PASSWORD='...'
 GitHub Actions Secrets, проверяет APK через `apksigner`, выпускает SBOM,
 контрольные суммы и provenance attestation.
 
+### Переход с Android 2.2.x на 2.3.0
+
+Версии 2.2.0–2.2.3 были опубликованы с Android Debug certificate. Для 2.3.0
+принят новый production signing identity без certificate rotation. Поэтому
+Android не установит 2.3.0 поверх 2.2.x: пользователь должен убедиться, что
+готовые файлы находятся в публичной папке `Downloads/YTDow`, удалить старое
+приложение и установить 2.3.0 заново. Файлы в публичной папке сохраняются;
+внутренняя история и настройки приложения сбрасываются.
+
+Начиная с 2.3.0 все последующие обновления должны использовать тот же
+production-ключ. Порядок создания, резервирования и настройки ключа описан в
+[docs/ANDROID_SIGNING.md](docs/ANDROID_SIGNING.md). Предупреждение о чистой
+установке обязательно включено в
+[release-notes/v2.3.0.md](release-notes/v2.3.0.md).
+
 ## Проверка desktop
 
 ```bash

@@ -4,6 +4,13 @@ All notable changes to YTDow are documented in this file.
 
 ## [2.3.0] - Unreleased
 
+### Breaking
+
+- Android 2.3.0 starts a new production signing identity. It cannot be
+  installed over debug-signed 2.2.0–2.2.3; users must keep their files in
+  `Downloads/YTDow`, uninstall the old app, and perform a clean installation.
+  App-private history and settings do not survive the uninstall.
+
 ### Added
 
 - Reliable Android cancellation, retry, attempt history, and MediaStore-backed
@@ -25,6 +32,6 @@ All notable changes to YTDow are documented in this file.
 
 ### Known release blockers
 
-- A physical Android device, the approved production signing identity, and a
-  GPL Corresponding Source bundle for the bundled FFmpeg build are required
-  before this version can be tagged or published.
+- A physical Android device, the newly generated production signing identity,
+  and a GPL Corresponding Source bundle for the bundled FFmpeg build are
+  required before this version can be tagged or published.
