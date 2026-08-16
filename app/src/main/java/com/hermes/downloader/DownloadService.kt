@@ -178,6 +178,11 @@ class DownloadService : Service() {
             if (forceIpv4) addOption("--force-ipv4")
             addOption("--print", "before_dl:${TITLE_PREFIX}%(title)s")
             addOption("--print", "after_move:${FILE_PREFIX}%(filepath)s")
+            // --print implies quiet mode in yt-dlp. Re-enable line-oriented progress so
+            // the WebView receives percentage, transfer speed, and ETA updates.
+            addOption("--no-simulate")
+            addOption("--progress")
+            addOption("--newline")
 
             if (format == "mp3") {
                 addOption("-f", "bestaudio/best")
@@ -213,7 +218,7 @@ class DownloadService : Service() {
                 parsedPercent != null -> parsedPercent.roundToInt()
                 else -> -1
             }.coerceIn(-1, 100)
-            val speed = Regex("""at\s+(\S+)\s""").find(output)?.groupValues?.get(1).orEmpty()
+            val speed = Regex("""\bat\s+(\S+)""").find(output)?.groupValues?.get(1).orEmpty()
             val eta = Regex("""ETA\s+(\S+)""").find(output)?.groupValues?.get(1).orEmpty()
             persistProgressIfDue(taskId, progress, speed, eta)
             sendProgress(taskId, progress, speed, eta)

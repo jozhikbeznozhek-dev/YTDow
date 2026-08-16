@@ -30,6 +30,10 @@ All notable changes to YTDow are documented in this file.
 - Keep cancellation terminal despite late progress events, play the error
   animation on cancel, and hide unloaded mascot frames instead of exposing a
   broken image placeholder.
+- Explicitly re-enable line-oriented yt-dlp progress after metadata print hooks
+  so Android cards receive live percentage, transfer speed, and ETA output.
+- Hide the cancellation error animation after four seconds, returning to the
+  download animation only when another task is still active.
 
 ### Security
 

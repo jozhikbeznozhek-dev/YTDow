@@ -34,7 +34,7 @@ production-signed/notarized macOS-сборка в этой сессии не с�
 | Репозиторий | `git@github.com:jozhikbeznozhek-dev/YTDow.git` |
 | Исходный commit | `e99d198d45d10682df7e47cd22e5cfb8b7fea20c` (`v2.2.3`, `origin/main`) |
 | Release branch | `release/v2.3.0` |
-| Проверенный material candidate | `release/v2.3.0`, подписанный Android candidate versionCode 10 |
+| Проверенный material candidate | `release/v2.3.0`, подписанный Android candidate versionCode 11 |
 | Финальный release/tag commit | отсутствует — публикация заблокирована |
 | Локальный/remote tag `v2.3.0` | отсутствует |
 | GitHub Release `v2.3.0` | отсутствует (`gh release view`: `release not found`) |
@@ -199,25 +199,28 @@ completion на Pixel 9 Pro. Значения секретов не выводи
 Первый candidate versionCode 9 подтвердил новую production identity. После
 исправления жизненного цикла карточек загрузки финальный строгий gate
 `testDebugUnitTest testReleaseUnitTest lintRelease :app:productionRelease`
-завершился успешно за 6m 13s. Проверено:
+завершился успешно за 7m 7s. Проверено:
 
 - исходный подписанный candidate: package `com.jozhikbeznozhek.ytdow`,
   versionName `2.3.0`, versionCode `9`;
 - текущий подписанный candidate: package `com.jozhikbeznozhek.ytdow`,
-  versionName `2.3.0`, versionCode `10`;
-- ABI `arm64-v8a`, размер 62,606,970 bytes;
+  versionName `2.3.0`, versionCode `11`;
+- ABI `arm64-v8a`, размер 62,606,906 bytes;
 - v1 false, v2 true, v3 true; один signer; Debug DN отсутствует;
 - certificate DN `CN=YTDow Production, OU=Release, O=YTDow`;
 - certificate SHA-256:
   `5b88f4e377b1c6bd5e492886c442002b14f20c970bf9ea90d43076747a1c65c9`;
 - текущий APK SHA-256:
-  `e92db0e0c928a06647a3a9995d683200b6a418c1430fca39b039a98ac29ad3af`;
+  `ce1289e025088019a83ee7b9ac484d99b2a7d35579c7876e67bfe1b8b3895e3d`;
 - `zipalign -c -v 4`: PASS.
 
 WebView interaction test дополнительно подтвердил восстановление прогресса
 `46%`, декодирование success-анимации воздушного поцелуя (natural width 512),
 автоматическое удаление завершённой карточки и error-анимацию при отмене без
-показа сломанного изображения.
+показа сломанного изображения. Error-сцена после отмены автоматически скрылась
+через четыре секунды. Отдельный yt-dlp smoke test с теми же `--print`,
+`--progress`, `--newline` и `--no-simulate` подтвердил выдачу живых процентов и
+скорости в каждой строке загрузки.
 
 ### SBOM
 

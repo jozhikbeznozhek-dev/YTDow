@@ -17,6 +17,7 @@
     attempts: [],
     taskState: 'idle',
     animationTimer: null,
+    mascotHideTimer: null,
     animationNonce: 0,
     sizeTimer: null,
     taskSyncTimer: null,
@@ -161,10 +162,11 @@
       : `${source}${source.includes('?') ? '&' : '?'}play=${playId}`;
   }
 
-  function setMascotState(next) {
+  function setMascotState(next, options = {}) {
     const stage = $('#mascot-stage');
     const mascot = $('#mascot');
     clearTimeout(state.animationTimer);
+    clearTimeout(state.mascotHideTimer);
     state.taskState = next;
 
     if (next === 'idle') {
@@ -199,6 +201,13 @@
       playMascotAnimation('errorIntro', () => {
         if (state.taskState === 'error') playMascotAnimation('errorLoop');
       });
+      if (options.autoHideMs > 0) {
+        state.mascotHideTimer = setTimeout(() => {
+          if (state.taskState !== 'error') return;
+          if (hasActiveTasks()) setMascotState('downloading');
+          else setMascotState('idle');
+        }, options.autoHideMs);
+      }
     }
   }
 
@@ -604,7 +613,7 @@
     callNative('cancelDownload', undefined, taskId);
     task.status = 'cancelled';
     renderTasks();
-    setMascotState('error');
+    setMascotState('error', { autoHideMs: 4000 });
     scheduleTaskRemoval(taskId, 'cancelled', 3200);
     showToast('Загрузка отменена');
     setTimeout(refreshAttempts, 180);
