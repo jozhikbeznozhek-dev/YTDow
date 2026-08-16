@@ -32,6 +32,6 @@ All notable changes to YTDow are documented in this file.
 
 ### Known release blockers
 
-- A physical Android device, the newly generated production signing identity,
-  and a GPL Corresponding Source bundle for the bundled FFmpeg build are
-  required before this version can be tagged or published.
+- A physical Android device and a GPL Corresponding Source bundle for the
+  bundled FFmpeg build are required before this version can be tagged or
+  published. The new production signing identity is configured and verified.

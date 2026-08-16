@@ -7,16 +7,15 @@
 
 Локальные Android, desktop и supply-chain проверки, которые можно выполнить в
 данном окружении, завершены. Строгая Gradle dependency verification работает,
-полный Android gate прошёл, unsigned APK и валидный CycloneDX SBOM созданы,
+полный Android gate прошёл, unsigned и production-signed APK и валидный
+CycloneDX SBOM созданы,
 desktop-тесты и Linux smoke build прошли, известные package vulnerabilities и
 секреты не обнаружены.
 
-Публикация запрещена тремя независимыми Android-блокерами:
+Публикация запрещена двумя независимыми Android-блокерами:
 
 1. Ни одного физического Android-устройства не видно через `adb devices -l`.
-2. Новый production keystore и соответствующие release credentials ещё не
-   созданы и не настроены ни локально, ни в GitHub Actions Secrets.
-3. Для native FFmpeg payload из `youtubedl-android:0.18.1` не подтверждён
+2. Для native FFmpeg payload из `youtubedl-android:0.18.1` не подтверждён
    полный GPL Corresponding Source, воспроизводящий распространяемые бинарники.
 
 Решение по несовместимой подписи принято 2026-08-16: v2.3.0 начинает новую
@@ -39,7 +38,7 @@ production-signed/notarized macOS-сборка в этой сессии не с�
 | Финальный release/tag commit | отсутствует — публикация заблокирована |
 | Локальный/remote tag `v2.3.0` | отсутствует |
 | GitHub Release `v2.3.0` | отсутствует (`gh release view`: `release not found`) |
-| GitHub Actions secret names | пустой список на момент проверки |
+| GitHub Actions secret names | все пять `YTDOW_*` signing secrets настроены 2026-08-16; значения не читались и не логировались |
 
 До переноса изменений исходный release worktree не содержал пользовательских
 изменений. Другие worktree, в том числе основной worktree на отдельном SHA,
@@ -99,7 +98,7 @@ Qt runtime libraries для Linux были распакованы в изоли�
 | Desktop pip-audit | PASS | `No known vulnerabilities found` |
 | PyInstaller Linux smoke | PASS (не release target) | bundle стартует и жив 8 секунд; resources присутствуют |
 | Нативный macOS release | BLOCKED | Linux не является кросс-компилятором; native CI ещё не исполнялся, production signing/notarization отсутствуют |
-| Production Android signing | BLOCKED | `:app:checkProductionSigning` exit 1: production signing not configured |
+| Production Android signing | PASS | новый RSA-4096 key; `:app:productionRelease` exit 0; v2/v3 signature и fingerprint проверены |
 | Certificate continuity | DECIDED / CLEAN INSTALL | новый production certificate без rotation; установка поверх 2.2.x намеренно не поддерживается |
 | Физическое Android-устройство | BLOCKED | `adb devices -l`: пустой список |
 | GPL Corresponding Source | BLOCKED | недостаточно данных для точного native FFmpeg build |
@@ -188,6 +187,26 @@ CycloneDX 3.4.0 был актуальной проверенной версие�
 В APK не найдены случайные `.env`, keystore, signing properties, Git metadata,
 Python cache или dev requirements.
 
+### Production-signed APK candidate
+
+После принятия clean-install решения 2026-08-16 создан новый RSA-4096
+production certificate и настроены все пять защищённых GitHub Actions Secrets.
+Зашифрованный PKCS12 и recovery environment file хранятся вне репозитория в
+пользовательском Syncthing storage с правами `600`; Syncthing подтвердил 100%
+completion на Pixel 9 Pro. Значения секретов не выводились.
+
+Команда `:app:productionRelease` завершилась успешно за 4m 11s. Проверено:
+
+- package `com.jozhikbeznozhek.ytdow`, versionName `2.3.0`, versionCode `9`;
+- ABI `arm64-v8a`, размер 62,606,066 bytes;
+- v1 false, v2 true, v3 true; один signer; Debug DN отсутствует;
+- certificate DN `CN=YTDow Production, OU=Release, O=YTDow`;
+- certificate SHA-256:
+  `5b88f4e377b1c6bd5e492886c442002b14f20c970bf9ea90d43076747a1c65c9`;
+- APK SHA-256:
+  `80343b5f4f51502fdba49f873ee94344ead9b07367ac0dd6f827cd70f6723d1f`;
+- `zipalign -c -v 4`: PASS.
+
 ### SBOM
 
 - CycloneDX 1.6 JSON: 132 components, 0 `unspecified`, project license
@@ -233,15 +252,11 @@ Linux artifact не является доказательством готовн
 
 ## Production signing и continuity
 
-Задача `:app:productionRelease` существует. С корректным Android SDK она
-останавливается до сборки на `:app:checkProductionSigning`:
-
-```text
-Production signing is not configured. Set YTDOW_KEYSTORE,
-YTDOW_STORE_PASSWORD, YTDOW_KEY_ALIAS and YTDOW_KEY_PASSWORD.
-```
-
-Exit code: 1. Новый keystore не создавался.
+Задача `:app:productionRelease` требует все signing credentials и останавливает
+сборку до упаковки, если хотя бы одного значения или файла нет. Новый key
+создан вне репозитория, защищён паролем, синхронизирован в одобренное
+пользователем хранилище и настроен в GitHub Actions Secrets. Локальный
+production gate и независимая проверка `apksigner` завершились успешно.
 
 Референсный APK v2.2.3:
 
@@ -285,8 +300,8 @@ production build и fingerprint comparison. Сторонний OSV action зап
 | External links and unexpected schemes | BLOCKED |
 | Navigation bypass attempts | BLOCKED |
 | Install v2.3.0 over v2.2.3 | BLOCKED — устройство; ожидаемый результат: Android отклоняет несовместимую подпись |
-| Uninstall 2.2.3 → clean install v2.3.0 | BLOCKED — устройство и новый production-signed candidate |
-| Update production v2.3.0 → higher versionCode | BLOCKED — устройство и новый production-signed candidate |
+| Uninstall 2.2.3 → clean install v2.3.0 | BLOCKED — есть production-signed candidate, нет подключённого устройства |
+| Update production v2.3.0 → higher versionCode | BLOCKED — есть production identity, нужен тестовый APK с higher versionCode и устройство |
 | Clean install, first run, permissions, main functions | BLOCKED |
 | Screenshots and redacted filtered logcat | BLOCKED |
 
@@ -368,20 +383,18 @@ dist, `.venv`, Python caches, IDE files, logs, local properties, signing files
 
 ## Следующие минимально необходимые действия
 
-1. Создать новую production signing identity по `docs/ANDROID_SIGNING.md`,
-   сделать и проверить две раздельные зашифрованные резервные копии.
-2. Настроить новый ключ в защищённой локальной или GitHub release-среде и
-   проверить fingerprint; секретные значения не передавать в issue, чат или
-   отчёт. Старый Debug key не использовать.
-3. Подключить физическое arm64 Android-устройство и пройти всю device matrix на
+1. Перенести signing passwords из recovery environment file в отдельный
+   password manager и сделать вторую проверенную зашифрованную резервную копию
+   ключа вне текущего Syncthing storage.
+2. Подключить физическое arm64 Android-устройство и пройти всю device matrix на
    production-signed candidate, включая ожидаемый отказ обновления 2.2.3,
    сохранность публичных файлов, clean install и последующее production update,
    с redacted screenshots/logcat.
-4. Получить или воспроизводимо собрать полный GPL Corresponding Source для
+3. Получить или воспроизводимо собрать полный GPL Corresponding Source для
    bundled native payload и приложить его/действительное written offer.
-5. Выполнить native macOS build, tests, signing, notarization и smoke на
+4. Выполнить native macOS build, tests, signing, notarization и smoke на
    поддерживаемом runner, если desktop artifact входит в v2.3.0.
-6. После устранения блокеров повторить финальные Android/desktop/signing gates
+5. После устранения блокеров повторить финальные Android/desktop/signing gates
    из точного release commit, сформировать `SHA256SUMS`, проверить SBOM, только
    затем создать annotated tag `v2.3.0`, push и GitHub Release.
 

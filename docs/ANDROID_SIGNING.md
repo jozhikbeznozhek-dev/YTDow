@@ -11,6 +11,18 @@ The old Debug keystore is not a production credential. Do not upload it to
 GitHub Actions, use it to sign 2.3.0, or weaken the release workflow to accept
 `CN=Android Debug`.
 
+## Approved v2.3.0 identity
+
+The production identity generated on 2026-08-16 is RSA-4096 with this public
+certificate SHA-256 fingerprint:
+
+```text
+5b88f4e377b1c6bd5e492886c442002b14f20c970bf9ea90d43076747a1c65c9
+```
+
+Local and GitHub release gates must match this exact value. A different
+fingerprint is not an alternative release key and must stop publication.
+
 ## Create the production identity
 
 Run `keytool` on a trusted offline workstation. Let `keytool` prompt for the
@@ -38,6 +50,21 @@ keytool -list -v \
 Keep at least two encrypted offline backups in separate locations and verify
 that one backup can be opened before publishing. Losing this key prevents
 future updates to every installation starting with 2.3.0.
+
+For an automated local setup, the repository also includes a generator that
+creates a strong random password, an encrypted PKCS12 file, and a mode-`600`
+recovery environment file without printing the password:
+
+```bash
+scripts/create-android-production-key.sh \
+  /protected/ytdow-production.p12 \
+  /protected/ytdow-production-recovery.env
+```
+
+The two output files must not be committed. Keeping them together is suitable
+only when the entire target folder and every synchronized endpoint are trusted.
+For stronger separation, move the password fields from the recovery file into
+a password manager after GitHub Secrets are configured.
 
 ## Local release gate
 
