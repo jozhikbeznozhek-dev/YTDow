@@ -345,6 +345,9 @@
       pointer-events: none;
     }
 
+    .mascot[data-animation-ready="false"],
+    .mascot:not([src]) { visibility: hidden; }
+
     .mascot[data-animation="success"] {
       filter: drop-shadow(0 10px 18px rgba(101, 230, 172, .12));
     }

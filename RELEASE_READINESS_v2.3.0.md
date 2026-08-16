@@ -34,7 +34,7 @@ production-signed/notarized macOS-сборка в этой сессии не с�
 | Репозиторий | `git@github.com:jozhikbeznozhek-dev/YTDow.git` |
 | Исходный commit | `e99d198d45d10682df7e47cd22e5cfb8b7fea20c` (`v2.2.3`, `origin/main`) |
 | Release branch | `release/v2.3.0` |
-| Проверенный material candidate | `4c83971bdb02e1eb5983d0e4a017cd8f3a56407b` |
+| Проверенный material candidate | `release/v2.3.0`, подписанный Android candidate versionCode 10 |
 | Финальный release/tag commit | отсутствует — публикация заблокирована |
 | Локальный/remote tag `v2.3.0` | отсутствует |
 | GitHub Release `v2.3.0` | отсутствует (`gh release view`: `release not found`) |
@@ -90,6 +90,7 @@ Qt runtime libraries для Linux были распакованы в изоли�
 | Dependency locks | PASS | lockfiles для четырёх Gradle-модулей; hash-locked Python runtime/dev locks |
 | Android unit tests | PASS | debug 33/33 и release 33/33; всего 66, 0 skipped/failures/errors |
 | Android lint | PASS | exit 0, 0 errors, 28 рассмотренных warnings |
+| WebView download lifecycle | PASS | реальный прогресс 46%; success/error WebP декодированы; completed card удалена автоматически |
 | `assembleRelease` | PASS | unsigned minified APK создан и zipaligned |
 | CycloneDX SBOM | PASS | JSON и XML валидны по CycloneDX 1.6; 132 компонента |
 | Runtime vulnerability scan | PASS | OSV: 132 Android + 10 Python packages, `No issues found` |
@@ -195,17 +196,28 @@ production certificate и настроены все пять защищённы�
 пользовательском Syncthing storage с правами `600`; Syncthing подтвердил 100%
 completion на Pixel 9 Pro. Значения секретов не выводились.
 
-Команда `:app:productionRelease` завершилась успешно за 4m 11s. Проверено:
+Первый candidate versionCode 9 подтвердил новую production identity. После
+исправления жизненного цикла карточек загрузки финальный строгий gate
+`testDebugUnitTest testReleaseUnitTest lintRelease :app:productionRelease`
+завершился успешно за 6m 13s. Проверено:
 
-- package `com.jozhikbeznozhek.ytdow`, versionName `2.3.0`, versionCode `9`;
-- ABI `arm64-v8a`, размер 62,606,066 bytes;
+- исходный подписанный candidate: package `com.jozhikbeznozhek.ytdow`,
+  versionName `2.3.0`, versionCode `9`;
+- текущий подписанный candidate: package `com.jozhikbeznozhek.ytdow`,
+  versionName `2.3.0`, versionCode `10`;
+- ABI `arm64-v8a`, размер 62,606,970 bytes;
 - v1 false, v2 true, v3 true; один signer; Debug DN отсутствует;
 - certificate DN `CN=YTDow Production, OU=Release, O=YTDow`;
 - certificate SHA-256:
   `5b88f4e377b1c6bd5e492886c442002b14f20c970bf9ea90d43076747a1c65c9`;
-- APK SHA-256:
-  `80343b5f4f51502fdba49f873ee94344ead9b07367ac0dd6f827cd70f6723d1f`;
+- текущий APK SHA-256:
+  `e92db0e0c928a06647a3a9995d683200b6a418c1430fca39b039a98ac29ad3af`;
 - `zipalign -c -v 4`: PASS.
+
+WebView interaction test дополнительно подтвердил восстановление прогресса
+`46%`, декодирование success-анимации воздушного поцелуя (natural width 512),
+автоматическое удаление завершённой карточки и error-анимацию при отмене без
+показа сломанного изображения.
 
 ### SBOM
 

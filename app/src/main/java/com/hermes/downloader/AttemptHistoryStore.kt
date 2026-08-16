@@ -35,8 +35,26 @@ object AttemptHistoryStore {
             entry.put("title", title.ifBlank { url })
             entry.put("filePath", filePath)
             entry.put("sizeBytes", sizeBytes)
+            entry.put("percent", 100)
             entry.put("finishedAt", System.currentTimeMillis())
+            entry.remove("speed")
+            entry.remove("eta")
             entry.remove("error")
+        }
+    }
+
+    @Synchronized
+    fun progress(context: Context, taskId: String, percent: Int, speed: String, eta: String) {
+        update(
+            context,
+            taskId,
+            JSONObject().put("taskId", taskId).put("time", System.currentTimeMillis())
+        ) { entry ->
+            if (entry.optString("status") in setOf("completed", "error", "cancelled")) return@update
+            entry.put("status", "downloading")
+            if (percent >= 0) entry.put("percent", percent)
+            if (speed.isNotBlank()) entry.put("speed", speed)
+            if (eta.isNotBlank()) entry.put("eta", eta)
         }
     }
 
@@ -55,6 +73,8 @@ object AttemptHistoryStore {
             entry.put("title", title.ifBlank { url })
             entry.put("error", error)
             entry.put("finishedAt", System.currentTimeMillis())
+            entry.remove("speed")
+            entry.remove("eta")
         }
     }
 
@@ -63,6 +83,8 @@ object AttemptHistoryStore {
         update(context, taskId, JSONObject().put("taskId", taskId).put("time", System.currentTimeMillis())) { entry ->
             entry.put("status", "cancelled")
             entry.put("finishedAt", System.currentTimeMillis())
+            entry.remove("speed")
+            entry.remove("eta")
         }
     }
 
@@ -72,6 +94,8 @@ object AttemptHistoryStore {
             entry.put("status", "error")
             entry.put("error", "Система остановила длительную фоновую загрузку")
             entry.put("finishedAt", System.currentTimeMillis())
+            entry.remove("speed")
+            entry.remove("eta")
         }
     }
 

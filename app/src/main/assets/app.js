@@ -19,17 +19,31 @@
     animationTimer: null,
     animationNonce: 0,
     sizeTimer: null,
+    taskSyncTimer: null,
+    taskCleanupTimers: {},
     lastSizeBytes: 0,
     lastSizeLabel: '',
     sheetTrigger: null,
   };
 
   const mascotAnimations = {
-    downloading: { src: 'animations/dance.webp', durationMs: 2000, loop: true },
-    success: { src: 'animations/success.webp', durationMs: 2417, loop: false },
-    errorIntro: { src: 'animations/error-intro.webp', durationMs: 1083, loop: false },
-    errorLoop: { src: 'animations/error-loop.webp', durationMs: 1083, loop: true },
+    downloading: { src: 'animations/dance.webp', blobUrl: '', durationMs: 2000, loop: true },
+    success: { src: 'animations/success.webp', blobUrl: '', durationMs: 2417, loop: false },
+    errorIntro: { src: 'animations/error-intro.webp', blobUrl: '', durationMs: 1083, loop: false },
+    errorLoop: { src: 'animations/error-loop.webp', blobUrl: '', durationMs: 1083, loop: true },
   };
+
+  async function prepareMascotAnimations() {
+    await Promise.all(Object.values(mascotAnimations).map(async animation => {
+      try {
+        const response = await fetch(animation.src, { cache: 'force-cache' });
+        if (!response.ok) return;
+        animation.blobUrl = URL.createObjectURL(await response.blob());
+      } catch (_) {
+        // The original appassets URL remains a safe fallback.
+      }
+    }));
+  }
 
   function callNative(method, fallback, ...args) {
     try {
@@ -134,13 +148,17 @@
     mascot.onerror = () => {
       if (playId !== state.animationNonce) return;
       mascot.dataset.animationReady = 'error';
+      mascot.removeAttribute('src');
+      mascot.dataset.animationReady = 'false';
       showToast('Не удалось загрузить анимацию персонажа');
     };
 
     mascot.removeAttribute('src');
     void mascot.offsetWidth;
-    const separator = animation.src.includes('?') ? '&' : '?';
-    mascot.src = `${animation.src}${separator}play=${playId}`;
+    const source = animation.blobUrl || animation.src;
+    mascot.src = source.startsWith('blob:')
+      ? `${source}#play=${playId}`
+      : `${source}${source.includes('?') ? '&' : '?'}play=${playId}`;
   }
 
   function setMascotState(next) {
@@ -153,6 +171,7 @@
       state.animationNonce += 1;
       mascot.removeAttribute('src');
       mascot.dataset.animation = 'idle';
+      mascot.dataset.animationReady = 'false';
       mascot.alt = '';
       stage.classList.add('hidden');
       return;
@@ -302,6 +321,83 @@
   function refreshAttempts() {
     state.attempts = normalizeEntries(parseArray(callNative('getAttemptHistory', '[]'))).reverse();
     renderHistory();
+  }
+
+  function scheduleTaskRemoval(taskId, expectedStatus, delayMs) {
+    if (state.taskCleanupTimers[taskId]) return;
+    state.taskCleanupTimers[taskId] = setTimeout(() => {
+      delete state.taskCleanupTimers[taskId];
+      if (state.tasks[taskId]?.status !== expectedStatus) return;
+      delete state.tasks[taskId];
+      renderTasks();
+    }, delayMs);
+  }
+
+  function syncTasksFromAttempts() {
+    const attempts = normalizeEntries(parseArray(callNative('getAttemptHistory', '[]')));
+    if (!attempts.length) return;
+    state.attempts = attempts.slice().reverse();
+    let changed = false;
+    let terminalChange = false;
+
+    attempts.forEach(attempt => {
+      const taskId = String(attempt.taskId || '');
+      if (!taskId) return;
+      const persistedStatus = attempt.status === 'failed' ? 'error' : attempt.status;
+      let task = state.tasks[taskId];
+      if (!task && ['queued', 'downloading'].includes(persistedStatus)) {
+        task = {
+          id: taskId,
+          url: String(attempt.url || ''),
+          title: String(attempt.title || 'Подготовка загрузки'),
+          format: String(attempt.format || 'mp4'),
+          quality: String(attempt.quality || 'best'),
+          status: persistedStatus,
+          percent: Number.isFinite(Number(attempt.percent)) ? Number(attempt.percent) : 0,
+          speed: String(attempt.speed || ''),
+          filePath: String(attempt.filePath || ''),
+          sizeBytes: Number(attempt.sizeBytes) || 0,
+          error: '',
+        };
+        state.tasks[taskId] = task;
+        changed = true;
+      }
+      if (!task) return;
+
+      const previousStatus = task.status;
+      const nextStatus = persistedStatus;
+      if (['completed', 'error', 'cancelled'].includes(previousStatus) &&
+          ['queued', 'downloading'].includes(nextStatus)) return;
+      if (['queued', 'downloading', 'completed', 'error', 'cancelled'].includes(nextStatus)) {
+        task.status = nextStatus;
+      }
+      if (Number.isFinite(Number(attempt.percent))) task.percent = Number(attempt.percent);
+      if (attempt.speed) task.speed = String(attempt.speed);
+      if (attempt.title) task.title = String(attempt.title);
+      if (attempt.filePath) task.filePath = String(attempt.filePath);
+      if (Number(attempt.sizeBytes) > 0) task.sizeBytes = Number(attempt.sizeBytes);
+      if (attempt.error) task.error = String(attempt.error);
+
+      if (task.status === 'completed') {
+        task.percent = 100;
+        scheduleTaskRemoval(taskId, 'completed', 2800);
+      }
+      if (task.status === 'cancelled') {
+        scheduleTaskRemoval(taskId, 'cancelled', 3200);
+      }
+      if (task.status !== previousStatus || task.status === 'downloading') changed = true;
+      if (task.status !== previousStatus && ['completed', 'error', 'cancelled'].includes(task.status)) {
+        terminalChange = true;
+        if (task.status === 'completed') setMascotState('success');
+        if (task.status === 'cancelled' || task.status === 'error') setMascotState('error');
+      }
+    });
+
+    if (terminalChange) refreshDownloads();
+    if (changed) {
+      renderTasks();
+      renderHistory();
+    }
   }
 
   function startDownload() {
@@ -508,7 +604,8 @@
     callNative('cancelDownload', undefined, taskId);
     task.status = 'cancelled';
     renderTasks();
-    setMascotState(hasActiveTasks() ? 'downloading' : 'idle');
+    setMascotState('error');
+    scheduleTaskRemoval(taskId, 'cancelled', 3200);
     showToast('Загрузка отменена');
     setTimeout(refreshAttempts, 180);
   }
@@ -560,7 +657,9 @@
   }
 
   function onProgress(taskId, percent, speed) {
-    const task = state.tasks[taskId] || {
+    const existingTask = state.tasks[taskId];
+    if (existingTask && ['completed', 'error', 'cancelled'].includes(existingTask.status)) return;
+    const task = existingTask || {
       id: taskId, url: '', title: 'Видео загружается', format: 'mp4', quality: 'best', sizeBytes: 0, filePath: '', error: '',
     };
     task.status = 'downloading';
@@ -588,6 +687,7 @@
     }
     renderTasks();
     setMascotState('success');
+    scheduleTaskRemoval(taskId, 'completed', 2800);
   }
 
   function onError(taskId, error) {
@@ -683,10 +783,7 @@
       button.setAttribute('aria-checked', String(button.classList.contains('selected')));
     });
 
-    Object.values(mascotAnimations).forEach(animation => {
-      const image = new Image();
-      image.src = animation.src;
-    });
+    prepareMascotAnimations();
 
     $$('[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
     $$('[data-open-sheet]').forEach(button => button.addEventListener('click', () => openSheet(button.dataset.openSheet)));
@@ -725,6 +822,12 @@
     });
     $('#update-button').addEventListener('click', checkUpdate);
     $('#legal-button').addEventListener('click', () => { window.location.href = 'legal.html'; });
+    clearInterval(state.taskSyncTimer);
+    state.taskSyncTimer = setInterval(syncTasksFromAttempts, 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncTasksFromAttempts();
+    });
+    syncTasksFromAttempts();
   }
 
   Object.assign(window, {
@@ -738,7 +841,7 @@
     onUpdateResult,
     onUpdateProgress,
     onUpdateStatus,
-    YTDowApp: { state, switchTab, setMascotState, refreshDownloads, refreshAttempts, closeActiveSheet },
+    YTDowApp: { state, switchTab, setMascotState, refreshDownloads, refreshAttempts, syncTasksFromAttempts, closeActiveSheet },
   });
 
   document.addEventListener('DOMContentLoaded', initialize, { once: true });

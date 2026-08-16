@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -35,6 +36,7 @@ class DownloadService : Service() {
     @Inject lateinit var downloadRepository: DownloadRepository
 
     private val active = ConcurrentHashMap<String, Boolean>()
+    private val lastPersistedProgressAt = ConcurrentHashMap<String, Long>()
     private val pool = Executors.newFixedThreadPool(3)
     @Volatile private var initDone = false
 
@@ -144,6 +146,7 @@ class DownloadService : Service() {
                 }
             } finally {
                 active.remove(tid)
+                lastPersistedProgressAt.remove(tid)
                 stagingDirectory?.deleteRecursively()
                 if (active.isEmpty()) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -212,6 +215,7 @@ class DownloadService : Service() {
             }.coerceIn(-1, 100)
             val speed = Regex("""at\s+(\S+)\s""").find(output)?.groupValues?.get(1).orEmpty()
             val eta = Regex("""ETA\s+(\S+)""").find(output)?.groupValues?.get(1).orEmpty()
+            persistProgressIfDue(taskId, progress, speed, eta)
             sendProgress(taskId, progress, speed, eta)
         }
 
@@ -304,6 +308,14 @@ class DownloadService : Service() {
         nm.notify(1, n(if (active.size <= 1) "Загрузка..." else "Загрузок: ${active.size}", 0))
     }
 
+    private fun persistProgressIfDue(taskId: String, percent: Int, speed: String, eta: String) {
+        val now = SystemClock.elapsedRealtime()
+        val previous = lastPersistedProgressAt[taskId]
+        if (previous != null && now - previous < PROGRESS_PERSIST_INTERVAL_MS && percent != 100) return
+        lastPersistedProgressAt[taskId] = now
+        AttemptHistoryStore.progress(this, taskId, percent, speed, eta)
+    }
+
     private fun n(t: String, p: Int) = NotificationCompat.Builder(this, "downloads")
         .setContentTitle("YTDow")
         .setContentText(t)
@@ -360,6 +372,7 @@ class DownloadService : Service() {
     companion object {
         private const val TITLE_PREFIX = "YTDOW_TITLE:"
         private const val FILE_PREFIX = "YTDOW_FILE:"
+        private const val PROGRESS_PERSIST_INTERVAL_MS = 750L
         private val IPV4_RETRY_MARKERS = listOf(
             "network is unreachable",
             "no route to host",

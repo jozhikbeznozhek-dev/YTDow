@@ -22,6 +22,15 @@ All notable changes to YTDow are documented in this file.
 - Privacy, security, GPL, and third-party notices in the application and
   repository.
 
+### Fixed
+
+- Reconcile active Android download cards with persisted native progress so
+  progress and completion survive missed lifecycle broadcasts; completed cards
+  now leave the active list automatically after a short success state.
+- Keep cancellation terminal despite late progress events, play the error
+  animation on cancel, and hide unloaded mascot frames instead of exposing a
+  broken image placeholder.
+
 ### Security
 
 - Restrict the Android JavaScript bridge to local WebView assets and validate

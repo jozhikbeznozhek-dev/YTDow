@@ -114,6 +114,7 @@ class MainActivity : AppCompatActivity() {
             addJavascriptInterface(WebAppInterface(), "Android")
         }
         setContentView(webView)
+        register()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 webView.evaluateJavascript("window.YTDowApp?.closeActiveSheet?.() === true") { closed ->
@@ -136,20 +137,22 @@ class MainActivity : AppCompatActivity() {
         scheduleYtDlpUpdate()
     }
 
-    override fun onStart() { super.onStart(); register() }
-
     override fun onResume() {
         super.onResume()
-        val apk = pendingUpdateApk ?: return
-        if (canInstallPackages()) {
+        js("window.YTDowApp?.syncTasksFromAttempts?.()")
+        val apk = pendingUpdateApk
+        if (apk != null && canInstallPackages()) {
             pendingUpdateApk = null
             launchPackageInstaller(apk)
         }
     }
 
-    override fun onStop() {
-        if (isReceiverRegistered) { unregisterReceiver(receiver); isReceiverRegistered = false }
-        super.onStop()
+    override fun onDestroy() {
+        if (isReceiverRegistered) {
+            unregisterReceiver(receiver)
+            isReceiverRegistered = false
+        }
+        super.onDestroy()
     }
 
     private fun createChannel() {
@@ -274,6 +277,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun cancelDownload(taskId: String) {
+            AttemptHistoryStore.cancel(this@MainActivity, taskId)
             sendBroadcast(Intent(DownloadService.ACTION_CANCEL).apply {
                 setPackage(packageName)
                 putExtra(DownloadService.EXTRA_TASK_ID, taskId)
