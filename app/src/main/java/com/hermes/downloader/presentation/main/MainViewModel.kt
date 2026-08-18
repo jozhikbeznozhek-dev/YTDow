@@ -32,7 +32,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun deleteFile(filePath: String) { viewModelScope.launch { downloadRepo.deleteFile(filePath) } }
+    fun deleteFile(filePath: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val deleted = downloadRepo.deleteFile(filePath)
+            onResult(deleted)
+        }
+    }
 
     fun getSavePath(): String = PUBLISHED_DOWNLOADS_PATH
     fun getHistoryJson(): String = prefs.getString("download_history", "[]") ?: "[]"

@@ -67,6 +67,15 @@ object AttemptHistoryStore {
     }
 
     @Synchronized
+    fun timeout(context: Context, taskId: String) {
+        update(context, taskId, JSONObject().put("taskId", taskId).put("time", System.currentTimeMillis())) { entry ->
+            entry.put("status", "error")
+            entry.put("error", "Система остановила длительную фоновую загрузку")
+            entry.put("finishedAt", System.currentTimeMillis())
+        }
+    }
+
+    @Synchronized
     fun json(context: Context): String = preferences(context).getString(KEY, "[]") ?: "[]"
 
     private fun defaults(taskId: String, url: String, format: String, quality: String) = JSONObject().apply {

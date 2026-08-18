@@ -13,6 +13,8 @@ local.properties
 *.aab
 *.jks
 *.keystore
+*.p12
+/.signing/
 __pycache__/
 **/__pycache__/
 .hermes/

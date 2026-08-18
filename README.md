@@ -1,103 +1,93 @@
-# YTDow — Smart Video Downloader
+# YTDow
 
-Кроссплатформенный загрузчик видео с поддержкой YouTube и других платформ.  
-Чистая архитектура, многомодульный Gradle-проект, автообновление yt-dlp.
+YTDow — Android- и macOS-приложение для загрузки видео и аудио через `yt-dlp`.
+Пользователь отвечает за право загружать и использовать выбранный материал.
 
-Начиная с версии 2.2.1 постоянный Android package id — `com.jozhikbeznozhek.ytdow`.
-
-## Стек
-
-| Слой | Технологии |
-|---|---|
-| **Android UI** | WebView + OLED-интерфейс |
-| **Android Core** | Kotlin, Coroutines, Flow, Hilt DI |
-| **Хранение** | Room Database (3 DAO, 3 Entity) |
-| **Загрузки** | youtubedl-android + FFmpeg |
-| **Архитектура** | Clean Architecture (4 Gradle-модуля) |
-| **Тесты** | JUnit 4, MockK, Coroutines Test |
-| **Desktop** | Python 3.12 + PySide6 + yt-dlp |
-
-## Архитектура Android
-
-```
-:app        — Activity, WebView, UI (entry point)
-:data       — Repository impl, Room DB, ServiceLocator
-:domain     — Models, UseCases, Queue Manager (чистый Kotlin)
-:core       — Logger interface (чистый Kotlin)
-```
-
-- **Нет циклических зависимостей**: `app → data → domain, core`
-- **Plugin System**: `ServiceRegistry` + `VideoServiceProvider` — добавление новых платформ без правок ядра
-- **Download State Machine**: 7 состояний с валидированными переходами
-- **Queue Manager**: приоритеты, retry, pause/resume, ограничение параллельных задач
-- **Logger**: интерфейс с возможностью подмены на Timber
+Текущая версия Android: **2.3.0**. Постоянный application id:
+`com.jozhikbeznozhek.ytdow`. Android-релизы предназначены для устройств
+`arm64-v8a` с Android 7.0 (API 24) или новее.
 
 ## Возможности
 
-- ⬇ MP4 (best / 720p / 1080p) и MP3 (192 kbps)
-- 📊 Расчёт размера до загрузки через `getInfo()`
-- 📦 Пакетная загрузка — ссылки через запятую
-- 🔄 Автообновление yt-dlp раз в 7 дней
-- 📋 Отдельные библиотека файлов и история всех попыток загрузки
-- 🖤 OLED-интерфейс с покадровыми анимациями состояний
-- 🌐 Выбор аудиодорожки (язык)
-- 📁 Настраиваемая папка сохранения
-- 🔔 Проверка, скачивание и установка обновлений через GitHub Releases
+- MP4 и MP3, выбор качества и языка аудиодорожки;
+- параллельные загрузки с прогрессом, отменой и историей попыток;
+- сохранение Android-файлов через MediaStore в `Downloads/YTDow`;
+- проверка и установка подписанных обновлений из GitHub Releases;
+- локальный интерфейс без аналитики и рекламных SDK;
+- desktop-клиент на Python, PySide6 и `yt-dlp`.
 
-## Быстрый старт
+## Устройство проекта
 
-### Android
+| Каталог | Назначение |
+|---|---|
+| `app` | Android Activity, WebView UI и foreground download service |
+| `data` | Репозитории, локальная история и настройки |
+| `domain` | Модели, use cases и контракты очереди |
+| `core` | Общие Kotlin-интерфейсы |
+| `desktop` | macOS-клиент |
+
+Android использует Kotlin, Coroutines, Hilt, Room, AndroidX WebKit и
+`youtubedl-android`. WebView загружает только встроенные ресурсы через
+`appassets.androidplatform.net`; загрузки и история остаются на устройстве.
+
+## Проверка Android
+
+Требуются JDK 17, Android SDK Platform 36 и Build Tools 35.0.0.
 
 ```bash
-# Сборка (требуется JDK 17 + Android SDK 34)
-export JAVA_HOME=/path/to/jdk17
-export ANDROID_HOME=/path/to/sdk
-./gradlew :app:packageDebug
-
-# Установка на эмулятор/устройство
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-
-# Тесты
-./gradlew test
+export ANDROID_HOME=/path/to/android-sdk
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+./gradlew --no-daemon test lint assembleRelease cyclonedxBom
 ```
 
-### macOS Desktop
+Обычная `assembleRelease` создает неподписанный артефакт для проверки. Для
+публикуемой сборки задайте все четыре переменные и используйте обязательный
+production gate:
+
+```bash
+export YTDOW_KEYSTORE=/secure/path/ytdow-release.p12
+export YTDOW_STORE_PASSWORD='...'
+export YTDOW_KEY_ALIAS='...'
+export YTDOW_KEY_PASSWORD='...'
+./gradlew --no-daemon :app:productionRelease
+```
+
+Ключ нельзя хранить в репозитории. Workflow релиза восстанавливает его из
+GitHub Actions Secrets, проверяет APK через `apksigner`, выпускает SBOM,
+контрольные суммы и provenance attestation.
+
+## Проверка desktop
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r desktop/requirements-dev.txt
+PYTHONPATH=desktop QT_QPA_PLATFORM=offscreen python -m pytest -q desktop/tests
+python -m pip_audit -r desktop/requirements.txt
+```
+
+Сборка macOS:
 
 ```bash
 cd desktop
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt pyinstaller
-pyinstaller build.spec
-open dist/YTDow.app
+pyinstaller --clean --noconfirm YTDow.spec
 ```
 
-## Структура проекта
+Для подписанной сборки задаются `YTDOW_CODESIGN_IDENTITY` и
+`YTDOW_ENTITLEMENTS`; notarization выполняется в защищенной release-среде.
 
-```
-YTDow/
-├── app/src/main/           # Android entry point
-│   ├── assets/index.html   # WebView UI
-│   └── java/.../
-│       ├── MainActivity.kt
-│       ├── DownloadService.kt
-│       └── presentation/   # ViewModel
-├── data/src/main/           # Реализации
-│   └── java/.../
-│       ├── repository/      # DownloadRepositoryImpl
-│       ├── local/           # Room Database
-│       └── queue/           # QueueManagerImpl
-├── domain/src/main/         # Бизнес-логика
-│   └── java/.../
-│       ├── model/           # Сущности
-│       ├── repository/      # Интерфейсы
-│       ├── usecase/         # Use Cases
-│       ├── queue/           # Queue Manager
-│       └── plugin/          # Plugin System
-├── core/src/main/           # Утилиты (чистый Kotlin)
-├── desktop/                 # macOS версия (Python)
-└── app/src/test/            # Unit-тесты (23 теста)
-```
+## Безопасность и приватность
+
+Политика данных описана в [PRIVACY.md](PRIVACY.md), процесс сообщения об
+уязвимостях — в [SECURITY.md](SECURITY.md), сторонние компоненты — в
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Gradle dependency locking,
+SHA-256 verification metadata, Dependabot, OSV Scanner и `pip-audit` включены
+в CI.
 
 ## Лицензия
 
-MIT
+Copyright (C) 2026 YTDow contributors.
+
+Проект распространяется по GNU General Public License v3.0 only; см.
+[LICENSE](LICENSE). Выбор GPL-3.0 обеспечивает совместимость с используемым
+`youtubedl-android`, который опубликован под GPL-3.0.

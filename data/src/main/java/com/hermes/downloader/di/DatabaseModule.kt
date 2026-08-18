@@ -21,7 +21,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): YTDowDatabase =
         Room.databaseBuilder(ctx, YTDowDatabase::class.java, "ytdow.db")
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
     @Provides fun provideHistoryDao(db: YTDowDatabase): HistoryDao = db.historyDao()

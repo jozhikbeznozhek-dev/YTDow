@@ -14,7 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : SettingsRepository {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("ytdow", Context.MODE_PRIVATE)

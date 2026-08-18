@@ -18,16 +18,21 @@ import com.yausername.ffmpeg.FFmpeg
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.hermes.downloader.domain.model.DownloadHistoryEntry
+import com.hermes.downloader.domain.repository.DownloadRepository
 import com.hermes.downloader.domain.storage.DownloadStagingDirectory
-import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.runBlocking
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class DownloadService : Service() {
+
+    @Inject lateinit var downloadRepository: DownloadRepository
 
     private val active = ConcurrentHashMap<String, Boolean>()
     private val pool = Executors.newFixedThreadPool(3)
@@ -77,75 +82,51 @@ class DownloadService : Service() {
         notifySummary()
 
         pool.execute {
+            var stagingDirectory: File? = null
             var title = ""
             try {
-                val stagingDirectory = DownloadStagingDirectory.from(filesDir).apply {
-                    check(mkdirs() || isDirectory) { "Unable to create download staging directory" }
+                val stagingRoot = DownloadStagingDirectory.from(filesDir).apply {
+                    check(mkdirs() || isDirectory) { "Unable to create download staging root" }
+                }
+                stagingDirectory = File(stagingRoot, tid.replace(Regex("[^A-Za-z0-9._-]"), "_")).apply {
+                    deleteRecursively()
+                    check(mkdirs() || isDirectory) { "Unable to create task staging directory" }
                 }
                 YoutubeDL.getInstance().init(this@DownloadService)
                 FFmpeg.getInstance().init(this@DownloadService)
                 YtDlpUpdateCoordinator.updateIfDue(this@DownloadService)
 
-                val req = YoutubeDLRequest(url).apply {
-                    addOption("-o", "$stagingDirectory/%(title)s.%(ext)s")
-                    addOption("--no-playlist")
-                    addOption("--no-colors")
-                    addOption("--no-mtime")
-                    addOption("--no-keep-video")
-                    // Some Android networks advertise IPv6 without a working route.
-                    addOption("--force-ipv4")
-                    addOption("--socket-timeout", 20)
-                    addOption("--print", "after_move:filepath")
-                    addOption("--print", "%(title)s")
-
-                    when {
-                        fmt == "mp3" -> {
-                            addOption("-f", "bestaudio/best")
-                            addOption("-x")
-                            addOption("--audio-format", "mp3")
-                            addOption("--audio-quality", "192K")
-                        }
-                        else -> {
-                            addOption("--merge-output-format", "mp4")
-                            val langFilter = if (lang.isNotEmpty()) "[language=${lang}]" else ""
-                            if (qual == "best") {
-                                addOption("-f", "bestvideo+bestaudio${langFilter}/best")
-                            } else {
-                                addOption("-f", "bestvideo[height<=${qual.replace("p", "")}]+bestaudio${langFilter}/best")
-                            }
-                        }
+                val result = try {
+                    executeDownload(url, fmt, qual, lang, tid, stagingDirectory, forceIpv4 = false)
+                } catch (firstError: Exception) {
+                    if (!active.containsKey(tid) || !shouldRetryWithIpv4(firstError)) throw firstError
+                    Log.w("YTDow", "Default network route failed; retrying task $tid over IPv4")
+                    stagingDirectory.deleteRecursively()
+                    check(stagingDirectory.mkdirs() || stagingDirectory.isDirectory) {
+                        "Unable to reset task staging directory"
                     }
+                    executeDownload(url, fmt, qual, lang, tid, stagingDirectory, forceIpv4 = true)
                 }
-
-                var filePath = ""
-                YoutubeDL.getInstance().execute(req, tid) progressCallback@{ pct, eta, line ->
-                    if (!active.containsKey(tid)) return@progressCallback
-                    Log.d("YTDowLine", "pct=$pct eta=$eta line=$line")
-                    // Библиотека не парсит прогресс (pct всегда -1.0), stdout содержит только --print.
-                    // Шлём -1 как индикатор "indeterminate" — UI покажет анимацию вместо 0%.
-                    val parsedPercent = Regex("""(\d+(?:\.\d+)?)%""").find(line)?.groupValues?.get(1)?.toDoubleOrNull()
-                    val p = when {
-                        pct > 0.0f -> pct.roundToInt()
-                        parsedPercent != null -> parsedPercent.roundToInt()
-                        else -> -1
-                    }.coerceIn(-1, 100)
-                    val spd = Regex("""at\s+(\S+)\s""").find(line)?.groupValues?.get(1).orEmpty()
-                    val et = Regex("""ETA\s+(\S+)""").find(line)?.groupValues?.get(1).orEmpty()
-                    sendProgress(tid, p, spd, et)
-
-                    val t = line.trim()
-                    if (t.startsWith("/")) {
-                        filePath = t
-                    } else if (t.isNotEmpty() && title.isEmpty() && !t.startsWith("[") && !t.contains("%")) {
-                        title = t
-                    }
-                }
+                title = result.title
 
                 if (active.containsKey(tid)) {
-                    val sourceSizeBytes = File(filePath).length()
-                    val finalPath = copyToPublicDownloads(filePath)
+                    val sourceFile = File(result.filePath)
+                    check(sourceFile.isFile) { "Загруженный файл не найден" }
+                    val sourceSizeBytes = sourceFile.length()
+                    val finalPath = copyToPublicDownloads(sourceFile.absolutePath)
                         ?: throw IllegalStateException("Не удалось опубликовать загрузку в Downloads")
-                    saveToHistory(url, title, fmt, qual, finalPath, sourceSizeBytes)
+                    runBlocking {
+                        downloadRepository.addToHistory(
+                            DownloadHistoryEntry(
+                                url = url,
+                                title = title.ifBlank { sourceFile.nameWithoutExtension },
+                                format = fmt,
+                                quality = qual,
+                                filePath = finalPath,
+                                sizeBytes = sourceSizeBytes
+                            )
+                        )
+                    }
                     AttemptHistoryStore.complete(
                         this@DownloadService, tid, url, title, fmt, qual, finalPath, sourceSizeBytes
                     )
@@ -160,6 +141,7 @@ class DownloadService : Service() {
                 }
             } finally {
                 active.remove(tid)
+                stagingDirectory?.deleteRecursively()
                 if (active.isEmpty()) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -168,40 +150,84 @@ class DownloadService : Service() {
                 }
             }
         }
-        return START_NOT_STICKY
+        return START_REDELIVER_INTENT
     }
 
-    // История — объекты внутри массива (не JSON-строки)
-    private fun saveToHistory(
+    private fun executeDownload(
         url: String,
-        title: String,
-        fmt: String,
-        qual: String,
-        filePath: String,
-        sizeBytes: Long
-    ) {
-        try {
-            val prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
-            val hist = prefs.getString("download_history", "[]") ?: "[]"
-            val arr = org.json.JSONArray(hist)
-            val entry = JSONObject().apply {
-                put("url", url)
-                put("title", title)
-                put("format", fmt)
-                put("quality", qual)
-                put("filePath", filePath)
-                put("sizeBytes", sizeBytes)
-                put("time", System.currentTimeMillis())
-            }
-            arr.put(entry)  // H6: объект, не строка
+        format: String,
+        quality: String,
+        audioLanguage: String,
+        taskId: String,
+        stagingDirectory: File,
+        forceIpv4: Boolean
+    ): DownloadResult {
+        val request = YoutubeDLRequest(url).apply {
+            addOption("-o", "${stagingDirectory.absolutePath}/%(title)s.%(ext)s")
+            addOption("--no-playlist")
+            addOption("--no-colors")
+            addOption("--no-mtime")
+            addOption("--no-keep-video")
+            addOption("--socket-timeout", 20)
+            if (forceIpv4) addOption("--force-ipv4")
+            addOption("--print", "before_dl:${TITLE_PREFIX}%(title)s")
+            addOption("--print", "after_move:${FILE_PREFIX}%(filepath)s")
 
-            val trimmed = org.json.JSONArray()
-            val start = maxOf(0, arr.length() - 50)
-            for (i in start until arr.length()) {
-                trimmed.put(arr[i])
+            if (format == "mp3") {
+                addOption("-f", "bestaudio/best")
+                addOption("-x")
+                addOption("--audio-format", "mp3")
+                addOption("--audio-quality", "192K")
+            } else {
+                addOption("--merge-output-format", "mp4")
+                val languageFilter = audioLanguage.takeIf { it.isNotEmpty() }?.let { "[language=$it]" }.orEmpty()
+                val selector = if (quality == "best") {
+                    "bestvideo+bestaudio$languageFilter/best"
+                } else {
+                    "bestvideo[height<=${quality.removeSuffix("p")}]+bestaudio$languageFilter/best"
+                }
+                addOption("-f", selector)
             }
-            prefs.edit().putString("download_history", trimmed.toString()).apply()
-        } catch (_: Exception) {}
+        }
+
+        var filePath = ""
+        var title = ""
+        YoutubeDL.getInstance().execute(request, taskId) progressCallback@{ percent, _, line ->
+            if (!active.containsKey(taskId)) return@progressCallback
+            val output = line.trim()
+            when {
+                output.startsWith(FILE_PREFIX) -> filePath = output.removePrefix(FILE_PREFIX).trim()
+                output.startsWith(TITLE_PREFIX) -> title = output.removePrefix(TITLE_PREFIX).trim()
+            }
+
+            val parsedPercent = Regex("""(\d+(?:\.\d+)?)%""").find(output)
+                ?.groupValues?.get(1)?.toDoubleOrNull()
+            val progress = when {
+                percent > 0.0f -> percent.roundToInt()
+                parsedPercent != null -> parsedPercent.roundToInt()
+                else -> -1
+            }.coerceIn(-1, 100)
+            val speed = Regex("""at\s+(\S+)\s""").find(output)?.groupValues?.get(1).orEmpty()
+            val eta = Regex("""ETA\s+(\S+)""").find(output)?.groupValues?.get(1).orEmpty()
+            sendProgress(taskId, progress, speed, eta)
+        }
+
+        if (filePath.isBlank()) {
+            filePath = stagingDirectory.walkTopDown()
+                .filter { it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
+                .maxByOrNull { it.lastModified() }
+                ?.absolutePath
+                .orEmpty()
+        }
+        return DownloadResult(filePath, title)
+    }
+
+    private fun shouldRetryWithIpv4(error: Throwable): Boolean {
+        val message = generateSequence(error as Throwable?) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return IPV4_RETRY_MARKERS.any(message::contains)
     }
 
     private fun copyToPublicDownloads(srcPath: String): String? {
@@ -223,8 +249,8 @@ class DownloadService : Service() {
         check(targetDirectory.mkdirs() || targetDirectory.isDirectory) {
             "Не удалось создать папку Downloads/YTDow"
         }
-        val targetFile = File(targetDirectory, sourceFile.name)
-        sourceFile.copyTo(targetFile, overwrite = true)
+        val targetFile = uniqueLegacyTarget(targetDirectory, sourceFile.name)
+        sourceFile.copyTo(targetFile, overwrite = false)
         sourceFile.delete()
         targetFile.absolutePath
     } catch (exception: Exception) {
@@ -260,7 +286,7 @@ class DownloadService : Service() {
             values.put(MediaStore.Downloads.IS_PENDING, 0)
             contentResolver.update(mediaUri, values, null, null)
             sourceFile.delete()
-            return "/storage/emulated/0/Download/YTDow/$fileName"
+            return mediaUri.toString()
         } catch (exception: Exception) {
             targetUri?.let { contentResolver.delete(it, null, null) }
             Log.e("YTDow", "Unable to publish download", exception)
@@ -308,13 +334,35 @@ class DownloadService : Service() {
     }
 
     override fun onBind(i: Intent?): IBinder? = null
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        active.keys.toList().forEach { taskId ->
+            YoutubeDL.getInstance().destroyProcessById(taskId)
+            AttemptHistoryStore.timeout(this, taskId)
+            sendError(taskId, "Система остановила длительную фоновую загрузку")
+        }
+        active.clear()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf(startId)
+    }
+
     override fun onDestroy() {
-        pool.shutdown()
+        pool.shutdownNow()
         try { unregisterReceiver(cancelReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 
     companion object {
+        private const val TITLE_PREFIX = "YTDOW_TITLE:"
+        private const val FILE_PREFIX = "YTDOW_FILE:"
+        private val IPV4_RETRY_MARKERS = listOf(
+            "network is unreachable",
+            "no route to host",
+            "timed out",
+            "timeout",
+            "connection reset",
+            "temporary failure in name resolution"
+        )
         const val ACTION_CANCEL = "com.hermes.downloader.CANCEL"
         const val ACTION_PROGRESS = "com.hermes.downloader.PROGRESS"
         const val ACTION_COMPLETE = "com.hermes.downloader.COMPLETE"
@@ -331,4 +379,18 @@ class DownloadService : Service() {
         const val EXTRA_FILE_PATH = "filePath"
         const val EXTRA_AUDIO_LANG = "audioLang"
     }
+
+    private fun uniqueLegacyTarget(directory: File, originalName: String): File {
+        val requested = File(directory, originalName)
+        if (!requested.exists()) return requested
+        val extension = requested.extension.takeIf { it.isNotEmpty() }?.let { ".$it" }.orEmpty()
+        val baseName = requested.name.removeSuffix(extension)
+        for (suffix in 1..9999) {
+            val candidate = File(directory, "$baseName ($suffix)$extension")
+            if (!candidate.exists()) return candidate
+        }
+        error("Слишком много файлов с одинаковым названием")
+    }
+
+    private data class DownloadResult(val filePath: String, val title: String)
 }

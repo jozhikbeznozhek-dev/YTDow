@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <link rel="icon" href="data:,">
   <title>YTDow — OLED prototype</title>
@@ -21,7 +21,7 @@
       --pink-glow: rgba(255, 76, 158, .34);
       --white: #f8f5f8;
       --muted: #9a969f;
-      --muted-2: #625f68;
+      --muted-2: #8a8790;
       --success: #65e6ac;
       --danger: #ff5b73;
       --radius: 22px;
@@ -629,12 +629,16 @@
       background: #09090c;
       box-shadow: 0 -24px 70px rgba(0, 0, 0, .72);
       transform: translate(-50%, 105%);
-      transition: transform .32s cubic-bezier(.2, .88, .22, 1);
+      visibility: hidden;
+      pointer-events: none;
+      transition: transform .32s cubic-bezier(.2, .88, .22, 1), visibility 0s linear .32s;
     }
 
-    .sheet.show { transform: translate(-50%, 0); }
+    .sheet.show { transform: translate(-50%, 0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
     .sheet-handle { width: 42px; height: 4px; margin: 0 auto 17px; border-radius: 99px; background: #34343b; }
     .sheet h2 { margin: 0 0 15px; font-size: 20px; letter-spacing: -.02em; }
+    .sheet-close { position: absolute; top: 13px; right: 15px; width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 13px; background: var(--surface-3); color: var(--white); cursor: pointer; }
+    .sheet-close svg { width: 20px; height: 20px; }
 
     .option {
       width: 100%;
@@ -803,21 +807,23 @@
     </main>
   </div>
 
-  <nav class="bottom-nav" aria-label="Основная навигация">
-    <button class="nav-button active" type="button" data-tab="home"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-home"/></svg><span>Главная</span></button>
-    <button class="nav-button" type="button" data-tab="library"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-library"/></svg><span>Библиотека</span></button>
-    <button class="nav-button" type="button" data-tab="history"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-history"/></svg><span>История</span></button>
+  <nav class="bottom-nav" aria-label="Основная навигация" role="tablist">
+    <button class="nav-button active" type="button" role="tab" aria-selected="true" data-tab="home"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-home"/></svg><span>Главная</span></button>
+    <button class="nav-button" type="button" role="tab" aria-selected="false" data-tab="library"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-library"/></svg><span>Библиотека</span></button>
+    <button class="nav-button" type="button" role="tab" aria-selected="false" data-tab="history"><svg fill="none" stroke="currentColor" stroke-width="1.9"><use href="#i-history"/></svg><span>История</span></button>
   </nav>
 
   <div class="overlay" id="overlay"></div>
 
-  <section class="sheet" id="sheet-format" aria-modal="true" role="dialog" aria-label="Выбор формата">
+  <section class="sheet" id="sheet-format" aria-modal="true" aria-hidden="true" role="dialog" aria-label="Выбор формата" tabindex="-1">
+    <button class="sheet-close" type="button" data-close-sheet aria-label="Закрыть"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button>
     <div class="sheet-handle"></div><h2>Выберите формат</h2>
-    <button class="option selected" type="button" data-choice="format" data-value="mp4" data-label="MP4"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-video"/></svg></span><span><span class="option-main">MP4</span><span class="option-sub">Видео с аудиодорожкой</span></span><span class="radio"></span></button>
-    <button class="option" type="button" data-choice="format" data-value="mp3" data-label="MP3"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-file"/></svg></span><span><span class="option-main">MP3</span><span class="option-sub">Только аудио · 192 kbps</span></span><span class="radio"></span></button>
+    <button class="option selected" type="button" role="radio" aria-checked="true" data-choice="format" data-value="mp4" data-label="MP4"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-video"/></svg></span><span><span class="option-main">MP4</span><span class="option-sub">Видео с аудиодорожкой</span></span><span class="radio"></span></button>
+    <button class="option" type="button" role="radio" aria-checked="false" data-choice="format" data-value="mp3" data-label="MP3"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-file"/></svg></span><span><span class="option-main">MP3</span><span class="option-sub">Только аудио · 192 kbps</span></span><span class="radio"></span></button>
   </section>
 
-  <section class="sheet" id="sheet-quality" aria-modal="true" role="dialog" aria-label="Выбор качества">
+  <section class="sheet" id="sheet-quality" aria-modal="true" aria-hidden="true" role="dialog" aria-label="Выбор качества" tabindex="-1">
+    <button class="sheet-close" type="button" data-close-sheet aria-label="Закрыть"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button>
     <div class="sheet-handle"></div><h2>Выберите качество</h2>
     <button class="option" type="button" data-choice="quality" data-value="best" data-label="Лучшее"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">Лучшее</span><span class="option-sub">Максимально доступное качество</span></span><span class="radio"></span></button>
     <button class="option" type="button" data-choice="quality" data-value="2160p" data-label="2160p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">2160p (4K)</span><span class="option-sub">Ultra HD</span></span><span class="radio"></span></button>
@@ -827,7 +833,8 @@
     <button class="option" type="button" data-choice="quality" data-value="480p" data-label="480p"><span class="option-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-hd"/></svg></span><span><span class="option-main">480p</span><span class="option-sub">Минимальный размер</span></span><span class="radio"></span></button>
   </section>
 
-  <section class="sheet" id="sheet-settings" aria-modal="true" role="dialog" aria-label="Настройки">
+  <section class="sheet" id="sheet-settings" aria-modal="true" aria-hidden="true" role="dialog" aria-label="Настройки" tabindex="-1">
+    <button class="sheet-close" type="button" data-close-sheet aria-label="Закрыть"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button>
     <div class="sheet-handle"></div><h2>Настройки</h2>
     <div class="settings-list">
       <div class="setting-row"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-folder"/></svg><div><div class="setting-name">Папка сохранения</div><div class="setting-sub">Место для новых файлов</div></div><span class="setting-value" id="settings-path">Downloads/YTDow</span></div>
@@ -835,7 +842,8 @@
       <div class="setting-row"><svg fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-refresh"/></svg><div><div class="setting-name">Версия приложения</div><div class="setting-sub">Android</div></div><span class="setting-value" id="app-version">—</span></div>
     </div>
     <button class="update-button" id="update-button" type="button">Проверить обновление</button>
-    <div class="update-status" id="update-status"></div>
+    <button class="update-button legal-button" id="legal-button" type="button">Приватность и лицензии</button>
+    <div class="update-status" id="update-status" role="status" aria-live="polite"></div>
   </section>
 
   <div class="toast" id="toast" role="status"></div>

@@ -1,10 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_all
 
 datas = [('hermes_downloader/ui/styles.qss', 'hermes_downloader/ui')]
 binaries = []
 hiddenimports = ['pydantic', 'yt_dlp', 'PySide6']
 tmp_ret = collect_all('pydantic')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('yt_dlp')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
@@ -37,8 +40,8 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    codesign_identity=os.environ.get('YTDOW_CODESIGN_IDENTITY'),
+    entitlements_file=os.environ.get('YTDOW_ENTITLEMENTS'),
     icon=['assets/icon.icns'],
 )
 coll = COLLECT(
@@ -54,5 +57,11 @@ app = BUNDLE(
     coll,
     name='YTDow.app',
     icon='assets/icon.icns',
-    bundle_identifier=None,
+    bundle_identifier='com.jozhikbeznozhek.ytdow.desktop',
+    info_plist={
+        'CFBundleShortVersionString': '2.3.0',
+        'CFBundleVersion': '9',
+        'LSMinimumSystemVersion': '12.0',
+        'NSHighResolutionCapable': True,
+    },
 )

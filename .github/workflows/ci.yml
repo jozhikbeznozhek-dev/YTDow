@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android API 36
+        run: yes | sdkmanager "platforms;android-36" "build-tools;35.0.0" >/dev/null
+      - name: Test, lint and build minified release
+        run: ./gradlew --no-daemon test lint assembleRelease cyclonedxBom
+      - name: Scan shipped Android dependencies
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+        with:
+          scan-args: |-
+            -L build/reports/cyclonedx/bom.json
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-reports
+          if-no-files-found: warn
+          path: |
+            app/build/reports/
+            data/build/reports/
+            build/reports/cyclonedx/
+
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: desktop/requirements*.txt
+      - name: Install Qt runtime
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r desktop/requirements-dev.txt pip-audit==2.10.1
+      - name: Test desktop
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: desktop
+        run: |
+          python -m compileall -q desktop
+          python -m pytest -q desktop/tests
+          python -m pip_audit -r desktop/requirements.txt

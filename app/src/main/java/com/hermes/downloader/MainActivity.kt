@@ -9,14 +9,18 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewClientCompat
 import com.hermes.downloader.domain.queue.TaskIdFactory
 import com.hermes.downloader.presentation.main.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -66,22 +70,54 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ytdow", MODE_PRIVATE)
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.mediaPlaybackRequiresUserGesture = false
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClientCompat() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): Boolean = !isTrustedAppUri(request.url)
+            }
             webChromeClient = WebChromeClient()
             setBackgroundColor(0xFF000000.toInt())
             addJavascriptInterface(WebAppInterface(), "Android")
         }
         setContentView(webView)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                webView.evaluateJavascript("window.YTDowApp?.closeActiveSheet?.() === true") { closed ->
+                    if (closed != "true") {
+                        if (webView.canGoBack()) {
+                            webView.goBack()
+                        } else {
+                            isEnabled = false
+                            onBackPressedDispatcher.onBackPressed()
+                            isEnabled = true
+                        }
+                    }
+                }
+            }
+        })
         createChannel()
         requestNotifyPerm()
         requestLegacyStoragePerm()
-        webView.loadUrl("file:///android_asset/index.html")
+        webView.loadUrl(APP_URL)
         scheduleYtDlpUpdate()
     }
 
@@ -227,13 +263,12 @@ class MainActivity : AppCompatActivity() {
         fun openFile(filePath: String) {
             try {
                 val file = File(filePath)
-                val uri = findDownloadUri(filePath)
-                    ?: if (file.exists()) FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", file) else null
+                val uri = resolveDownloadUri(filePath)
                 if (uri == null) {
                     toast("Файл не найден: ${file.name}")
                     return
                 }
-                val mime = when {
+                val mime = contentResolver.getType(uri) ?: when {
                     filePath.endsWith(".mp3", true) -> "audio/mpeg"
                     filePath.endsWith(".mp4", true) -> "video/mp4"
                     else -> "*/*"
@@ -253,22 +288,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun openFolder(path: String) = try {
-            val folderUri = when {
-                path.startsWith("file://") || path.startsWith("content://") -> Uri.parse(path)
-                else -> Uri.parse("file://$path")
-            }
+        fun openFolder(@Suppress("UNUSED_PARAMETER") path: String) = try {
+            val folderUri = DocumentsContract.buildRootUri(
+                "com.android.providers.downloads.documents",
+                "downloads"
+            )
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(folderUri, "resource/folder")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                data = folderUri
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             try {
                 startActivity(intent)
             } catch (_: android.content.ActivityNotFoundException) {
-                toast("Папка: $path")
+                toast("Папка: Downloads/YTDow")
             }
         } catch (_: Exception) {
-            toast("Папка: $path")
+            toast("Папка: Downloads/YTDow")
         }
 
         @JavascriptInterface
@@ -288,8 +323,9 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun deleteFile(filePath: String) {
-            viewModel.deleteFile(filePath)
-            js("onHistoryChanged()")
+            viewModel.deleteFile(filePath) { deleted ->
+                js("onDeleteResult('${escJs(filePath)}',$deleted)")
+            }
         }
 
         @JavascriptInterface
@@ -338,22 +374,26 @@ class MainActivity : AppCompatActivity() {
         fun downloadUpdate(url: String) {
             viewModel.launchIO {
                 var conn: HttpURLConnection? = null
+                var partialFile: File? = null
+                var apkFile: File? = null
                 try {
                     val updateUrl = URL(url)
-                    check(isTrustedUpdateUrl(updateUrl)) { "Недопустимый адрес обновления" }
-                    conn = updateUrl.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 30000
-                    conn.readTimeout = 60000
-                    conn.instanceFollowRedirects = true
-                    conn.setRequestProperty("User-Agent", "YTDow/${BuildConfig.VERSION_NAME}")
+                    check(UpdateUrlPolicy.isInitialReleaseUrl(updateUrl)) {
+                        "Недопустимый адрес обновления"
+                    }
+                    conn = openTrustedUpdateConnection(updateUrl)
                     val statusCode = conn.responseCode
                     check(statusCode in 200..299) { "GitHub вернул HTTP $statusCode" }
                     val total = conn.contentLengthLong
                     check(total <= MAX_UPDATE_BYTES) { "APK слишком большой" }
-                    val apkFile = File(cacheDir, "update.apk")
-                    val partialFile = File(cacheDir, "update.apk.part")
+                    val updateDirectory = File(cacheDir, "updates").apply {
+                        check(mkdirs() || isDirectory) { "Не удалось создать каталог обновления" }
+                    }
+                    val targetApk = File(updateDirectory, "update.apk").also { apkFile = it }
+                    val partialApk = File(updateDirectory, "update.apk.part").also { partialFile = it }
+                    if (partialApk.exists()) check(partialApk.delete()) { "Не удалось очистить старую загрузку" }
                     conn.inputStream.use { input ->
-                        partialFile.outputStream().use { output ->
+                        partialApk.outputStream().use { output ->
                             val buffer = ByteArray(8192)
                             var bytesRead: Int
                             var downloaded = 0L
@@ -368,13 +408,15 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    check(partialFile.length() > 0) { "GitHub вернул пустой файл" }
-                    if (apkFile.exists()) check(apkFile.delete()) { "Не удалось заменить старое обновление" }
-                    check(partialFile.renameTo(apkFile)) { "Не удалось подготовить APK" }
-                    validateUpdateApk(apkFile)
+                    check(partialApk.length() > 0) { "GitHub вернул пустой файл" }
+                    if (targetApk.exists()) check(targetApk.delete()) { "Не удалось заменить старое обновление" }
+                    check(partialApk.renameTo(targetApk)) { "Не удалось подготовить APK" }
+                    validateUpdateApk(targetApk)
                     js("onUpdateStatus('APK загружен и проверен')")
-                    mainHandler.post { preparePackageInstall(apkFile) }
+                    mainHandler.post { preparePackageInstall(targetApk) }
                 } catch (e: Exception) {
+                    partialFile?.delete()
+                    apkFile?.delete()
                     val message = e.message ?: "Неизвестная ошибка"
                     js("onUpdateStatus('${escJs("Ошибка обновления: $message")}',true)")
                     toast("Ошибка обновления: $message")
@@ -385,10 +427,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun isTrustedUpdateUrl(url: URL): Boolean =
-        url.protocol.equals("https", ignoreCase = true) &&
-            url.host.equals("github.com", ignoreCase = true) &&
-            url.path.startsWith("/jozhikbeznozhek-dev/YTDow/releases/download/")
+    private fun openTrustedUpdateConnection(initialUrl: URL): HttpURLConnection {
+        var currentUrl = initialUrl
+        repeat(MAX_UPDATE_REDIRECTS + 1) { redirectCount ->
+            check(
+                if (redirectCount == 0) UpdateUrlPolicy.isInitialReleaseUrl(currentUrl)
+                else UpdateUrlPolicy.isTrustedRedirectUrl(currentUrl)
+            ) {
+                "GitHub перенаправил обновление на недоверенный адрес"
+            }
+            val connection = currentUrl.openConnection() as HttpURLConnection
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
+            connection.instanceFollowRedirects = false
+            connection.setRequestProperty("User-Agent", "YTDow/${BuildConfig.VERSION_NAME}")
+            val status = connection.responseCode
+            if (status !in 300..399) return connection
+
+            val location = connection.getHeaderField("Location")
+                ?: run {
+                    connection.disconnect()
+                    error("GitHub вернул перенаправление без адреса")
+                }
+            connection.disconnect()
+            check(redirectCount < MAX_UPDATE_REDIRECTS) { "Слишком много перенаправлений обновления" }
+            currentUrl = URL(currentUrl, location)
+        }
+        error("Слишком много перенаправлений обновления")
+    }
 
     private fun canInstallPackages(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
@@ -443,7 +509,7 @@ class MainActivity : AppCompatActivity() {
 
         val currentSigners = signerDigests(currentInfo)
         val updateSigners = signerDigests(updateInfo)
-        check(currentSigners.isNotEmpty() && currentSigners.intersect(updateSigners).isNotEmpty()) {
+        check(currentSigners.isNotEmpty() && currentSigners == updateSigners) {
             "Подпись APK не совпадает с установленным приложением"
         }
     }
@@ -463,6 +529,44 @@ class MainActivity : AppCompatActivity() {
         }.toSet()
     }
 
+    private fun resolveDownloadUri(filePath: String): Uri? {
+        if (filePath.startsWith("content://")) {
+            return Uri.parse(filePath).takeIf(::isOwnedDownloadUri)
+        }
+        val mediaUri = findDownloadUri(filePath)
+        if (mediaUri != null) return mediaUri
+
+        val file = runCatching { File(filePath).canonicalFile }.getOrNull() ?: return null
+        if (!isOwnedLegacyFile(file) || !file.isFile) return null
+        return FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+    }
+
+    private fun isOwnedDownloadUri(uri: Uri): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            uri.scheme != "content" || uri.authority != MediaStore.AUTHORITY
+        ) return false
+        return contentResolver.query(
+            uri,
+            arrayOf(MediaStore.Downloads.RELATIVE_PATH),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            cursor.moveToFirst() && cursor.getString(
+                cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            ).trimEnd('/') == "Download/YTDow"
+        } == true
+    }
+
+    private fun isOwnedLegacyFile(file: File): Boolean {
+        @Suppress("DEPRECATION")
+        val root = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "YTDow"
+        ).canonicalFile
+        return file.parentFile == root
+    }
+
     private fun findDownloadUri(filePath: String): Uri? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val fileName = File(filePath).name; if (fileName.isBlank()) return null
@@ -479,11 +583,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val APP_HOST = "appassets.androidplatform.net"
+        private const val APP_URL = "https://$APP_HOST/assets/index.html"
         private const val LATEST_RELEASE_URL =
             "https://api.github.com/repos/jozhikbeznozhek-dev/YTDow/releases/latest"
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val MAX_UPDATE_BYTES = 300L * 1024L * 1024L
+        private const val MAX_UPDATE_REDIRECTS = 5
         private const val YTDLP_UPDATE_DELAY_MS = 3000L
     }
+
+    private fun isTrustedAppUri(uri: Uri): Boolean =
+        uri.scheme == "https" && uri.host == APP_HOST && uri.path?.startsWith("/assets/") == true
 
 }
