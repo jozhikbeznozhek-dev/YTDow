@@ -28,7 +28,9 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v6
       - name: Install Android API 36
-        run: yes | sdkmanager "platforms;android-36" "build-tools;35.0.0" >/dev/null
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-36 build-tools;35.0.0
       - name: Test, lint and build minified release
         run: ./gradlew --no-daemon test lint assembleRelease cyclonedxBom
       - name: Scan shipped Android dependencies

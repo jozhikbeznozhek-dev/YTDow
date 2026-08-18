@@ -32,7 +32,9 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v6
       - name: Install Android API 36
-        run: yes | sdkmanager "platforms;android-36" "build-tools;35.0.0" >/dev/null
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-36 build-tools;35.0.0
       - name: Restore protected signing identity
         env:
           YTDOW_KEYSTORE_BASE64: ${{ secrets.YTDOW_KEYSTORE_BASE64 }}
