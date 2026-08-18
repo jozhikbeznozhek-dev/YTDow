@@ -94,8 +94,8 @@ kotlin {
 
 dependencies {
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.58")
-    kapt("com.google.dagger:hilt-android-compiler:2.58")
+    implementation("com.google.dagger:hilt-android:2.60.1")
+    kapt("com.google.dagger:hilt-android-compiler:2.60.1")
 
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0")
