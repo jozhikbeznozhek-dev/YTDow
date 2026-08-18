@@ -57,8 +57,10 @@ jobs:
         run: |
           VERSION="${RELEASE_TAG#v}"
           APK="app/build/outputs/apk/release/app-release.apk"
-          apksigner verify --verbose --print-certs "$APK"
-          ACTUAL_CERT_SHA256="$(apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          ACTUAL_CERT_SHA256="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
           test -n "$EXPECTED_CERT_SHA256"
           test "${ACTUAL_CERT_SHA256,,}" = "${EXPECTED_CERT_SHA256,,}"
           mkdir -p release
