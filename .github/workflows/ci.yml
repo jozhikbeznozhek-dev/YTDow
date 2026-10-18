@@ -34,7 +34,7 @@ jobs:
       - name: Test, lint and build minified release
         run: ./gradlew --no-daemon test lint assembleRelease cyclonedxBom
       - name: Scan shipped Android dependencies
-        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+        uses: google/osv-scanner-action/osv-scanner-action@v2.7.0
         with:
           scan-args: |-
             -L build/reports/cyclonedx/bom.json
